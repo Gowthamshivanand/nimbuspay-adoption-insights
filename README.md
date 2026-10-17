@@ -1,4 +1,4 @@
-# NimbusPay AI adoption insights: interactive prototype
+# NimbusPay AI adoption insights: live product + interactive prototype
 
 **Author:** Gowtham S · **Licence:** MIT · **Live demo:** https://YOUR-DOMAIN (placeholder)
 
@@ -6,7 +6,146 @@ A self-contained, offline, single-file prototype for the NimbusPay "Adoption Mir
 
 > Every number is **illustrative synthetic data** that follows the rules in the supporting workbook (metrics M01 to M21, licence funnel LF1 to LF6, interaction rules IR1 to IR8). No real NimbusPay data is used.
 
-## What it shows
+## Live product (`app/`): a real, runnable Adoption Insights product
+
+The repo now holds two things:
+1. **The live product** (`app/`): a Python backend with a real data pipeline, a local SQL warehouse, a working read-only **Adoption Insights Agent**, dashboards, alerts, scenario compare, a one-click board pack and an audit log. Runs on a laptop with no internet, no API key and no paid service.
+2. **The static prototype** (`index.html`): the single-file demo for GitHub Pages and offline use (unchanged, see below).
+
+### Run it (one command)
+```bash
+pip install -r requirements.txt && python -m app      # then open http://127.0.0.1:8000
+# or: make install run      # or: docker build -t nimbuspay-insights . && docker run -p 8000:8000 nimbuspay-insights
+```
+Python 3.10+. Dependencies: FastAPI, Uvicorn, python-multipart. The warehouse is SQLite from the standard library.
+
+### Architecture
+```mermaid
+flowchart LR
+  subgraph Inputs["Inputs (CSV, synthetic)"]
+    E[events.csv<br/>raw agent + login events]
+    S[seats.csv<br/>purchased / assigned / provisioned]
+    G[registry.csv<br/>agent registry + build type]
+    O[outcomes<br/>verified hours, cost index, critical risk]
+  end
+  E & S & G & O --> V[Validate<br/>schema, types, unknown agents]
+  V --> C[Clean<br/>dedupe event_id, late flag,<br/>period close + restatement]
+  C --> I[Group into logical interactions<br/>IR5 interaction ID = exact<br/>IR6 sessionisation 120 s = approximate]
+  I --> F[Licence funnel LF1-LF6]
+  I --> M[Governed metrics M01-M21<br/>headline: M01 M02 M04 M07 M10 M17 M18 M19]
+  F --> M
+  M --> SC[M19 value score<br/>Reach 20 / Depth 15 / Outcome 40 / Reliability 15 / Trust 10<br/>no silent imputation, critical-risk override, interim 33/25/25/17]
+  SC --> RN[Renewal engine<br/>4 evidence areas to 5 outcomes]
+  M --> WH[(SQLite warehouse<br/>events_clean, interactions,<br/>user_funnel, seats, agent_registry)]
+  WH --> AG[Adoption Insights Agent<br/>guards then intent router then SQL<br/>cites metric ID + version + data-as-of]
+  LLM[Brain: local open model via Ollama<br/>fallback: rules router<br/>optional: OpenAI-compatible] -.picks a governed tool only.-> AG
+  WH --> FT[Features: lineage, what-if,<br/>seat reclaim, bill reconciler]
+  FT --> UI
+  RN & SC & M & AG --> UI[Web UI: Executive, Regional, Engineering,<br/>What-if, Seats and bill, Agent, Alerts, Compare, Board pack, Audit log]
+  AG --> AU[(Audit log)]
+```
+
+| Folder / file | What it does |
+|---|---|
+| `app/pipeline.py` | Ingest, validate, clean, group, funnel, metrics, M19, renewal engine, alerts; loads the SQLite warehouse |
+| `app/agent.py` | The agent: safety guards, intent router, SQL-backed answers with citations, optional LLM router |
+| `app/server.py` | FastAPI REST API + serves the web UI |
+| `app/features.py` | Seat reclaim finder, what-if simulator, metric lineage, vendor bill reconciler |
+| `app/config.py` | Every threshold and weight in one place (placeholders, to agree) |
+| `app/static/` | The web UI (vanilla JS, no build step) |
+| `app/data/base/` | The v10 workbook's synthetic data as CSVs + the workbook's expected results |
+| `app/data/scenarios/` | 8 synthetic scenarios, each a real CSV data set |
+| `tools/export_workbook.py`, `tools/make_scenarios.py` | Rebuild the CSVs from the workbook (`make data`) |
+| `tests/` | pytest: pipeline, agent, brain, features, API, Playwright UI smoke test |
+
+### What the pipeline proves (asserted in `tests/test_pipeline.py`)
+On the workbook's extended synthetic set it reproduces **all 35 Expected_Results_Extended values exactly**: 210 raw rows, 6 duplicates, 4 after close, 200 clean events, 44 interactions (22 exact, 22 approximate), 43 qualifying, vendor-style MAU 21 vs 16 active (31.2% overstatement), funnel 31 / 23 / 22 / 16 / 11 / 6, M01 69.6%, M02 26.1%, M10 4.3%, M11 17.5%, M20 0% vs 100% by build type, 1 unregistered agent, regional funnels and the restatement. On the 9-event golden set: 9 events = 2 interactions (4.5x). All synthetic.
+
+### Features
+| Tab | What it does |
+|---|---|
+| Data | Load any of the 8 synthetic scenarios, or upload your own events, seats and registry CSVs (validated; bad files are rejected with the reason) |
+| Executive | Renewal recommendation with its 4 evidence areas, M19 beside its 5 pillars, 7 more headline metrics, the LF1-LF6 funnel. **Click any metric card to explain the number.** |
+| **Explain this number (lineage)** | For any metric: formula, version, owner (proposed role), freshness (data-as-of, late rows, restatement), source tables, pipeline steps, missing-data rule, tests, and the SQL, re-run live on the warehouse |
+| **What-if** | Renewal simulator: change the seat count at renewal, fix connector failures, or raise interaction-ID coverage. It re-runs the full pipeline and shows today vs what-if for the funnel, M19 pillars and renewal outcome. It is not a forecast. |
+| **Seats and bill** | **Seat reclaim finder**: never-assigned and idle seats by team, with 10% headroom kept, and a reclaim figure at a placeholder price (100 price units a seat, labelled synthetic). Team-level only. **Vendor bill reconciler**: upload the vendor invoice CSV (sample in `app/data/samples/vendor_invoice_sample.csv`) to compare billed vs purchased vs assigned vs active seats per team. Overbilling, unknown teams, unassigned billed seats and missing teams are flagged. |
+| Regional | Funnel and M01, M02, M11 by region; teams under 5 assigned seats are suppressed |
+| Engineering | M10, M11, M12, M16, M20; agent registry with build type and its source (registry or backfill) |
+| Agent | Read-only chat with the 21 golden questions as chips; the brain shown in the header; citations, SQL, refusals with safe alternatives |
+| Alerts | Rule-based alerts from the governed metrics |
+| Compare | All 8 scenarios side by side |
+| Board pack | One click: printable HTML (save as PDF) or Markdown |
+| Audit log | Every agent question with persona, result, metrics cited and brain |
+
+The UI follows the deck's brand: white background, charcoal `#222222`, orange `#F28C28` as the accent, teal `#0F5E63` only for verified items, and Arial. Red is used only for critical risk.
+
+### The agent and its "brain"
+- **Safety guards are always deterministic** and run first: individual surveillance, raw events or PII, small groups (< 5), out-of-scope regions (row-level security by persona), forecasts, causal claims, writes or actions, and ungoverned metrics are refused with a safe alternative. Anything it can't match is refused, never guessed.
+- **The brain only routes.** It picks one governed tool (for example `m01`, `m19`, `renewal`). The tool then runs real SQL on the warehouse and returns the answer with metric ID + version + data-as-of and the SQL. The model never states a number.
+- **Default brain: a small open model running locally at zero cost through [Ollama](https://ollama.com).** If Ollama isn't reachable, or the model returns anything outside the tool list, the agent falls back automatically to the **deterministic rules router**, which covers everything on its own. The chat header shows which brain is active.
+
+| Brain | When it is used | Setup |
+|---|---|---|
+| Open model (default when available) | Ollama answers at `OLLAMA_HOST` and `OLLAMA_MODEL` is pulled | Install Ollama, then `ollama pull qwen2.5:3b-instruct` (about 2 GB) or `ollama pull llama3.2:3b`. On a low-memory laptop use `qwen2.5:1.5b-instruct` or `qwen2.5:0.5b-instruct` and set `OLLAMA_MODEL` to match. |
+| OpenAI-compatible API (optional) | No Ollama, and `LLM_API_KEY` or `OPENAI_API_KEY` is set | Optional `LLM_BASE_URL`, `LLM_MODEL` |
+| Rules engine (always available) | Otherwise, or `NP_BRAIN=rules` | Nothing |
+
+```bash
+ollama pull qwen2.5:3b-instruct          # one time
+ollama serve                             # if it isn't already running as a service
+OLLAMA_MODEL=qwen2.5:3b-instruct python -m app
+# env: NP_BRAIN=auto|ollama|openai|rules (default auto), OLLAMA_HOST (default http://127.0.0.1:11434), OLLAMA_TIMEOUT (s)
+```
+The model gets the question plus the list of governed tools, and Ollama's structured output (a JSON schema with an enum of tool names) forces its reply to be one tool name or `none`.
+
+**Evaluate whichever brain is active:** `python tools/eval_agent.py` (or `--brain rules|ollama|openai`) runs the 21 golden questions plus refusal and paraphrase probes and prints the pass rate. The rules brain scores 21/21 on the golden questions and 29/29 overall. Run it with your model before the interview; if the model scores lower, start the app with `NP_BRAIN=rules`.
+
+**Golden questions:** all 21 Agent_Test_Questions get the expected behaviour (answer, answer with caveat, or refuse) in the workbook's own state, with no verified outcome data yet. pytest always runs against the rules brain, and `tests/test_brain.py` checks Ollama routing, guard order and fallback against a fake Ollama server.
+
+### Scenarios (real CSV data through the same pipeline)
+| Scenario | What changes in the data | Renewal outcome |
+|---|---|---|
+| Baseline | The workbook's 210-row set | Renew and right-size (M01 69.6% < 70%) |
+| Healthy adoption | Idle seats activated weekly | Expand |
+| Overstated usage | Everyone logs in, few return, high unit cost | Renegotiate |
+| Shelfware | 6 users stop, purchased seats grow | Renew and right-size |
+| New-country launch | New Region D cohort, no verified study yet | Continue limited pilot |
+| Reliability incident | Drag-and-drop connector calls fail | Renew with remediation conditions |
+| Missing interaction IDs | SDK drops IDs, all sessionised, impact not attributable | Continue limited pilot |
+| Critical-risk breach | Card data outside the masked zone | Renew with remediation conditions (score RED) |
+
+Upload your own `events.csv`, `seats.csv` and `registry.csv` on the **Data** tab (download any scenario's CSVs there as a template).
+
+### Tests
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q                      # pipeline + agent + API + Playwright UI smoke test
+```
+The UI test needs a Chrome/Chromium (set `CHROME_PATH` if it isn't at `/usr/bin/google-chrome`) and writes `docs/screenshots/app-*.png`; it skips if Playwright is missing.
+
+### Hosting the live product for free (you do this; nothing here deploys anything)
+- **Primary for the interview: your laptop.** `python -m app`, present from `http://127.0.0.1:8000`. Works with no internet.
+- **Public link: Render free web service.** New Web Service, then connect the repo. Build command `pip install -r requirements.txt`, start command `HOST=0.0.0.0 python -m app` (or choose Docker). Free instances sleep after 15 minutes idle and take about a minute to wake, so open the link 2 minutes before your slot. The filesystem is ephemeral, so the audit log resets on restart. Check Render's current free-tier terms.
+- **Any Docker host:** the `Dockerfile` runs anywhere.
+- **Offline fallback:** the static `index.html` (GitHub Pages or double-click) and `docs/demo.mp4`.
+
+### How it maps to the case deliverables
+| Case ask | Where it lives in the product |
+|---|---|
+| Define adoption properly (interactions, not events) | `pipeline.compute_core`: IR5 exact + IR6 approximate, qualifying = run + response; Data and Engineering tabs |
+| Licence funnel and shelfware | LF1-LF6 on the Executive tab; regional funnels with small-group suppression |
+| Governed metric set | M01-M21 dictionary (`src/data.json`), 8 headline metrics computed in `pipeline.run`, each with ID + version |
+| AI value score | M19 with 5 pillars, no silent imputation, critical-risk override, interim index |
+| Dashboards for each persona | Executive, Regional adoption and intervention, Engineering reliability |
+| Adoption Insights Agent | `app/agent.py`: 21 golden questions, refusals, SQL, citations, audit log |
+| Renewal decision | Renewal engine (4 evidence areas to 5 outcomes), Compare tab, board pack export |
+| Trust and governance | Read-only agent, persona scope, PII guards, audit log, metric versions, data-as-of, restatement |
+
+---
+
+## Static prototype (`index.html`)
+
+### What it shows
 | Screen | What it demonstrates |
 |---|---|
 | 1 Executive view | AI value score (M19) beside its 5 pillars (Reach 20, Depth 15, Outcome 40, Reliability 15, Trust 10); no silent imputation; critical-risk override; habitual users, verified hours, utilisation, cost per verified hour (an index against a placeholder cost); the renewal recommendation |
@@ -31,7 +170,13 @@ A self-contained, offline, single-file prototype for the NimbusPay "Adoption Mir
 
 Personas: Executive sponsor, Regional lead A, Regional lead B, Platform engineer, Fraud operations lead. A **Guided demo** button runs a 6-step story. A walkthrough video is in `docs/demo.mp4`.
 
-## Screenshots
+### Screenshots
+![Live product: executive view](docs/screenshots/app-02-executive.png)
+![Live product: agent](docs/screenshots/app-05-agent.png)
+![Live product: scenario compare](docs/screenshots/app-07-compare.png)
+![Explain this number](docs/screenshots/app-11-lineage.png)
+![What-if simulator](docs/screenshots/app-12-whatif.png)
+![Seat reclaim and vendor bill](docs/screenshots/app-13-seats-bill.png)
 ![Executive view](docs/screenshots/1-exec.png)
 ![Agent answering a why question](docs/screenshots/5b-agent-q07.png)
 ![How we count](docs/screenshots/4-count.png)
@@ -39,7 +184,7 @@ Personas: Executive sponsor, Regional lead A, Regional lead B, Platform engineer
 ![Engineering, reliability incident](docs/screenshots/scenario-incident-eng.png)
 ![Governance](docs/screenshots/6-gov.png)
 
-## Run locally
+### Run the static prototype locally
 Double-click `index.html`. It needs no server, build or internet. Or run `python3 -m http.server 8000` and open http://localhost:8000.
 
 Rebuild after editing `src/`:
@@ -50,7 +195,7 @@ cd src && python3 build.py   # writes ../index.html from shell.html + style.css 
 
 Test (optional): `pip install playwright` and use a Chrome or Chromium binary, then run `python tests/qa_final.py file://$PWD/index.html /tmp/`. It clicks through every scenario, persona, screen and golden question, plus the guided demo, and fails on console errors.
 
-## Deploy free on GitHub Pages
+## Deploy the static prototype free on GitHub Pages
 1. Create a public repository, for example `nimbuspay-adoption-insights`, and push this folder to the `main` branch.
 2. Open **Settings → Pages → Build and deployment → Source: GitHub Actions**. The included workflow `.github/workflows/pages.yml` publishes on each push to `main`.
 3. The site goes live at `https://<username>.github.io/nimbuspay-adoption-insights/`.

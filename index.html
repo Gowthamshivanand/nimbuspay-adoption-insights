@@ -166,44 +166,42 @@ const fmt = n => Number(n).toLocaleString("en-US");
 const metric = id => D.Metric_Dictionary.find(m => m["Metric ID"] === id);
 
 /* Illustrative synthetic demo data (not NimbusPay figures) */
-const MIN_GROUP = 10; // demo minimum reporting size, in assigned seats (to be agreed)
+const MIN_GROUP = 5; // minimum reporting size in assigned seats, same rule as the live product (to be agreed)
+/* Baseline = the v10 workbook's synthetic extended data set, exactly as the live pipeline computes it:
+   seats 31 purchased / 23 assigned / 22 provisioned; 16 active, 11 engaged, 6 habitual; M01 69.6%. */
 const TEAMS = [
-  ["TEAM-A","Region A","Established","Fraud operations",120,112,110,86,64,41],
-  ["TEAM-B","Region A","Established","Support",80,72,70,49,33,19],
-  ["TEAM-C","Region A","Launch cohort 1","Merchant onboarding",40,31,29,17,10,5],
-  ["TEAM-J","Region A","Launch cohort 3","Support",6,6,5,3,1,1],
-  ["TEAM-D","Region B","Established","Fraud operations",150,138,135,97,70,44],
-  ["TEAM-E","Region B","Launch cohort 2","Merchant onboarding",60,52,48,22,12,6],
-  ["TEAM-F","Region B","Established","Compliance",3,3,3,3,2,2],
-  ["TEAM-G","Region C","Established","Compliance",100,85,84,63,45,30],
-  ["TEAM-H","Region C","Launch cohort 3","Support",30,24,22,11,5,2],
-  ["TEAM-I","Region C","Launch cohort 2","Merchant onboarding",45,40,38,20,11,5]
+  ["TEAM-A1","Region A","Established","Fraud operations",6,6,6,4,3,3],
+  ["TEAM-A2","Region A","Established","Support",5,4,3,2,1,1],
+  ["TEAM-B1","Region B","Launch cohort 2","Compliance",5,4,4,3,3,1],
+  ["TEAM-B2","Region B","Launch cohort 2","Merchant onboarding",6,4,4,3,2,1],
+  ["TEAM-C1","Region C","Launch cohort 3","Merchant onboarding",5,3,3,2,1,0],
+  ["TEAM-C2","Region C","Launch cohort 3","Merchant onboarding",4,2,2,2,1,0]
 ].map(t => ({id:t[0],region:t[1],cohort:t[2],fn:t[3],purchased:t[4],assigned:t[5],provisioned:t[6],active:t[7],engaged:t[8],habitual:t[9]}));
-/* Q07 last-month funnel for launch cohort 2 teams (illustrative synthetic) */
-const Q07_BEFORE = {"TEAM-E":{assigned:36,active:22,engaged:13,habitual:7},"TEAM-I":{assigned:31,active:19,engaged:12,habitual:6}};
+/* Q07 last-month funnel for launch cohort 2 teams (illustrative synthetic prior period) */
+const Q07_BEFORE = {"TEAM-B1":{assigned:4,active:4,engaged:3,habitual:2},"TEAM-B2":{assigned:4,active:4,engaged:3,habitual:2}};
 const STAGES = [["purchased","Purchased"],["assigned","Assigned"],["provisioned","Provisioned"],["active","Active"],["engaged","Engaged"],["habitual","Habitual"]];
-let VENDOR_MAU = 512; // vendor-style MAU: any login counts (<= 544 provisioned)
+let VENDOR_MAU = 21; // vendor-style MAU proxy: users with any logged event, logins included (workbook XR14)
 const AGENTS = [
-  {id:"AG-FRAUD-01",name:"Fraud-review assistant",build:"Engineer-built",reg:true,runs:4120,fail:74,p95:4.2},
-  {id:"AG-ONB-02",name:"Merchant-onboarding assistant",build:"Drag-and-drop",reg:true,runs:2310,fail:90,p95:6.8},
-  {id:"AG-SRCH-03",name:"Support search",build:"Engineer-built",reg:true,runs:6540,fail:59,p95:2.1},
-  {id:"AG-DOC-04",name:"Compliance document summary",build:"Engineer-built",reg:true,runs:1980,fail:32,p95:5.4},
-  {id:"AG-DD-05",name:"Unnamed agent (no registry entry)",build:"Drag-and-drop",reg:false,runs:410,fail:25,p95:7.9},
-  {id:"AG-DD-06",name:"Unnamed agent (no registry entry)",build:"Drag-and-drop",reg:false,runs:150,fail:7,p95:6.2}
+  {id:"AG-FRAUD-01",name:"Fraud-review assistant",build:"Engineer-built",reg:true,runs:14,fail:1,p95:4.2},
+  {id:"AG-KYC-04",name:"KYC document checker",build:"Engineer-built",reg:true,runs:9,fail:1,p95:5.4},
+  {id:"AG-ONB-02",name:"Merchant-onboarding assistant",build:"Drag-and-drop",reg:true,runs:12,fail:0,p95:6.8},
+  {id:"AG-SUMM-03",name:"Document summariser",build:"Drag-and-drop",reg:true,runs:7,fail:0,p95:3.1},
+  {id:"AG-DND-X9",name:"Unknown agent found in logs (no registry entry)",build:"Drag-and-drop",reg:false,runs:4,fail:0,p95:7.9}
 ];
+/* 40 connector calls, 7 failed = M11 17.5% (workbook XR26); the split by connector is illustrative */
 const CONNECTORS = [
-  {id:"Ticketing",calls:5200,fail:94,prev:1.7},
-  {id:"Email",calls:2100,fail:132,prev:2.0},
-  {id:"Internal wiki",calls:3400,fail:41,prev:1.3}
+  {id:"Ticketing",calls:19,fail:5,prev:20.0},
+  {id:"Email",calls:12,fail:1,prev:8.0},
+  {id:"Internal wiki",calls:9,fail:1,prev:10.0}
 ];
-const EVT_NOID = {"Engineer-built":{events:48200,noid:190},"Drag-and-drop":{events:16900,noid:6250}};
+const EVT_NOID = {"Engineer-built":{events:95,noid:0},"Drag-and-drop":{events:56,noid:56}};
 const DQ = {pass:46,all:48};
 const PILLARS = [
-  {k:"Reach",w:20,v:58,mm:["M02 Habitual users","M01 Licence utilisation","M03 Activation of new licences"]},
-  {k:"Depth",w:15,v:46,mm:["M04 Interactions per active user","M05 Workflows covered"]},
-  {k:"Outcome",w:40,v:62,mm:["M06 Verified time saved per task","M07 Task success rate","M08 Fraud handle-time change","M09 Onboarding cycle-time change"]},
-  {k:"Reliability",w:15,v:81,mm:["M10 Agent error rate","M11 Connector failure rate","M12 Data freshness"]},
-  {k:"Trust",w:10,v:74,mm:["M13 Negative feedback %","M14 Human override rate"]}
+  {k:"Reach",w:20,v:49.1,mm:["M02 Habitual users","M01 Licence utilisation","M03 Activation of new licences"]},
+  {k:"Depth",w:15,v:33.8,mm:["M04 Interactions per active user","M05 Workflows covered"]},
+  {k:"Outcome",w:40,v:60,mm:["M06 Verified time saved per task","M07 Task success rate","M08 Fraud handle-time change","M09 Onboarding cycle-time change"]},
+  {k:"Reliability",w:15,v:60.1,mm:["M10 Agent error rate","M11 Connector failure rate","M12 Data freshness"]},
+  {k:"Trust",w:10,v:47.9,mm:["M13 Negative feedback %","M14 Human override rate"]}
 ];
 const ROLES = {
   exec:{label:"Executive sponsor",regions:["Region A","Region B","Region C"],views:["exec","regional"]},
@@ -253,21 +251,21 @@ function applyPreset(k) {
   PILLARS.forEach((p, i) => p.v = b.PILLARS[i]); VENDOR_MAU = b.VENDOR_MAU;
   S.breach = false; S.relGap = false; S.lateLoad = true; S.missing = PILLARS.map(() => false); S.verifiedHrsWk = 180; S.cphIdx = 0.9;
   if (P.f) {
-    if (P.newc) TEAMS.push({id:"TEAM-K",region:"Region C",cohort:"Launch cohort 3",fn:"Merchant onboarding",purchased:160,assigned:140,provisioned:132,active:0,engaged:0,habitual:0},
-                           {id:"TEAM-L",region:"Region B",cohort:"Launch cohort 3",fn:"Support",purchased:90,assigned:80,provisioned:75,active:0,engaged:0,habitual:0});
+    if (P.newc) TEAMS.push({id:"TEAM-K",region:"Region C",cohort:"Launch cohort 3",fn:"Merchant onboarding",purchased:8,assigned:7,provisioned:6,active:0,engaged:0,habitual:0},
+                           {id:"TEAM-L",region:"Region B",cohort:"Launch cohort 3",fn:"Support",purchased:5,assigned:5,provisioned:4,active:0,engaged:0,habitual:0});
     TEAMS.forEach(t => {
       if (P.unassign) t.assigned = Math.min(t.assigned, Math.round(t.purchased * (1 - P.unassign)));
       t.provisioned = Math.min(t.provisioned, t.assigned);
       let fa = P.f.active; if (P.newc && t.cohort === "Launch cohort 3") fa = .3;
       if (!(t.cohort === "Launch cohort 2" && t.id in Q07_BEFORE)) t.active = Math.min(t.provisioned, Math.round(t.assigned * fa));
-      else t.active = Math.min(t.provisioned, Math.max(Q07_BEFORE[t.id].active, Math.round(t.assigned * Math.min(fa, .55))));
+      else t.active = Math.min(t.provisioned, Math.round(t.assigned * Math.min(fa, .75)));
       t.engaged = Math.round(t.active * P.f.engaged); t.habitual = Math.round(t.engaged * P.f.habitual);
     });
     const prov = sum(TEAMS, "provisioned"); VENDOR_MAU = Math.max(sum(TEAMS, "active"), Math.round(prov * P.mau));
     PILLARS.forEach((p, i) => p.v = P.pil[i]); S.verifiedHrsWk = P.vh; S.cphIdx = P.cph;
     S.lateLoad = !!P.outage; S.breach = !!P.breach; S.relGap = !!P.outage;
     if (P.outage) { const e = CONNECTORS.find(c => c.id === "Email"); e.fail = Math.round(e.calls * .31); AGENTS.find(a => a.id === "AG-ONB-02").fail = Math.round(AGENTS.find(a => a.id === "AG-ONB-02").runs * .27); }
-    if (P.noids) { EVT_NOID["Drag-and-drop"].events = 41800; EVT_NOID["Drag-and-drop"].noid = 29300; EVT_NOID["Engineer-built"].events = 23100; S.missing[1] = false; }
+    if (P.noids) { EVT_NOID["Engineer-built"].noid = 95; S.missing[1] = false; }
   }
 }
 function scopeTeams(role = S.role) {
@@ -551,7 +549,7 @@ function answerFor(qid) {
       if (!c.length || s.assigned < MIN_GROUP) return ans("refuse", "The newest country (launch cohort 3) is below the minimum reporting size within your scope.", [], {label:"LF1-LF6 funnel", reason:"Group below minimum size is suppressed", alt:"I can show the funnel for your whole region instead."});
       return ans("answer", `Launch cohort 3, from the cohort's first day: purchased ${XX(s.purchased)}, assigned ${XX(s.assigned)}, provisioned ${XX(s.provisioned)}, active ${XX(s.active)}, engaged ${XX(s.engaged)}, habitual ${XX(s.habitual)}. Utilisation is ${XX(pct(s.active, s.assigned, 0))}%, against ${XX(pct(t.active, t.assigned, 0))}% for your scope overall.`, ["M01","M03"], {sql:sqlFor(["M03"], scope, "\n  AND launch_cohort = 'Launch cohort 3'")}); }
     case "Q05": if (outOfRole) return refuseRole(); { const w = CONNECTORS.map(c => ({...c, r: 100 * c.fail / c.calls})).sort((a, b) => b.r - a.r)[0]; return ans("answer", `The ${w.id.toLowerCase()} connector has the highest failure rate this week: ${XX(w.r.toFixed(1))}% (${XX(fmt(w.fail))} failed / ${XX(fmt(w.calls))} calls).${late}`, ["M11","M12"], {sql:sqlFor(["M11"])}); }
-    case "Q06": if (outOfRole) return refuseRole(); return ans("answer", `${XX(2)} agents have no registry entry: ${W16() ? "AG-DD-05 and AG-DD-06, both drag-and-drop" : "xx"}. Definition: agents without a registry entry, reconciled to the source register.`, ["M16"], {sql:sqlFor(["M16"])});
+    case "Q06": if (outOfRole) return refuseRole(); return ans("answer", `${XX(AGENTS.filter(a => !a.reg).length)} agent has no registry entry: ${W16() ? "AG-DND-X9, build type backfilled as drag-and-drop from its log source (owner to confirm)" : "xx"}. Definition: agents without a registry entry, reconciled to the source register.`, ["M16"], {sql:sqlFor(["M16"])});
     case "Q07": { if (outOfRole) return refuseRole(); const c = scopeTeams().filter(x => x.cohort === "Launch cohort 2"), s = totals(c);
       if (!c.length) return ans("refuse", "Launch cohort 2 has no teams in your scope.", ["M01"], {reason:"Outside the user's role-based access", alt:"I can show utilisation for your own markets."});
       const shownT = c.filter(x => x.assigned >= MIN_GROUP), b = {assigned:0,active:0,engaged:0,habitual:0};

@@ -1,0 +1,6 @@
+{
+ "verified_hours_week": 230,
+ "cost_index": 0.8,
+ "critical_risk": "Card numbers found outside the masked zone in AG-FRAUD-01 logs (synthetic incident)",
+ "label": "Synthetic; illustrative inputs (cost index uses a placeholder platform cost)"
+}

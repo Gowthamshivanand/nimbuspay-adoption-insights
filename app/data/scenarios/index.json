@@ -1,0 +1,50 @@
+[
+ {
+  "key": "baseline",
+  "label": "Baseline (workbook data set)",
+  "note": "The v10 workbook's 210-row synthetic set exactly. Utilisation just under the agreed threshold.",
+  "expected_outcome": "Renew and right-size"
+ },
+ {
+  "key": "healthy",
+  "label": "Healthy adoption",
+  "note": "Idle seats activated, most users return weekly, verified hours reported, unit cost inside the threshold.",
+  "expected_outcome": "Expand"
+ },
+ {
+  "key": "overstated",
+  "label": "Overstated usage (vendor MAU high)",
+  "note": "Everyone logs in, so the vendor MAU proxy looks great, but few people return. Unit cost per verified hour is high.",
+  "expected_outcome": "Renegotiate"
+ },
+ {
+  "key": "shelfware",
+  "label": "Shelfware (paid seats unused)",
+  "note": "Six users stop using the assistant and purchased seats grow to 40; many paid and assigned seats have no qualifying use.",
+  "expected_outcome": "Renew and right-size"
+ },
+ {
+  "key": "newcountry",
+  "label": "New-country launch cohort",
+  "note": "A new country (Region D) launches with 8 seats and is still ramping; no verified study yet.",
+  "expected_outcome": "Continue limited pilot"
+ },
+ {
+  "key": "incident",
+  "label": "Reliability incident (connector outage)",
+  "note": "Connector outage on the onboarding agent: most connector calls fail for two weeks.",
+  "expected_outcome": "Renew with remediation conditions"
+ },
+ {
+  "key": "noids",
+  "label": "Missing interaction IDs",
+  "note": "The SDK release dropped interaction IDs, so every interaction is sessionised (approximate) and no study can attribute impact.",
+  "expected_outcome": "Continue limited pilot"
+ },
+ {
+  "key": "breach",
+  "label": "Critical-risk breach (privacy)",
+  "note": "Card data found outside the masked zone in an agent log: the score turns red and renewal needs remediation.",
+  "expected_outcome": "Renew with remediation conditions"
+ }
+]

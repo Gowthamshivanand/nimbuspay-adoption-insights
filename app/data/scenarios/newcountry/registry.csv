@@ -1,0 +1,6 @@
+agent_id,name,registered,build_type,log_source
+AG-FRAUD-01,Fraud-review assistant,Yes,Engineer-built,sdk
+AG-KYC-04,KYC document checker,Yes,Engineer-built,sdk
+AG-ONB-02,Merchant-onboarding assistant,Yes,Drag-and-drop,builder_ui
+AG-SUMM-03,Document summariser,Yes,Drag-and-drop,builder_ui
+AG-DND-X9,Unknown (found in logs),No,,builder_ui
