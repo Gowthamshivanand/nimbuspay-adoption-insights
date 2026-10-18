@@ -57,10 +57,10 @@ def make_qr(url, base):
 
 def inline_svg(svg_path):
     s = re.sub(r"<\?xml[^>]*\?>", "", open(svg_path, encoding="utf-8").read())
-    s = re.sub(r'width="\d+" height="\d+"', 'width="100%" height="100%"', s, count=1)
-    if "viewBox" not in s:
-        m = re.search(r'<svg[^>]*>', s)
-        s = s.replace(m.group(0), m.group(0)[:-1] + ' viewBox="0 0 330 330">', 1) if m else s
+    m = re.search(r'width="(\d+)" height="(\d+)"', s)
+    if m:
+        vb = "" if "viewBox" in s else f' viewBox="0 0 {m.group(1)} {m.group(2)}"'
+        s = s.replace(m.group(0), f'width="100%" height="100%"{vb}', 1)
     return s
 
 
@@ -107,13 +107,14 @@ def do_html(kind, pack, url, repo, qr_svg):
     if not os.path.exists(src):
         print(f"  skipped {kind}: template {TEMPLATES[kind]} not found"); return None
     h = open(src, encoding="utf-8").read()
-    code = show(repo) if repo else None
+    brk = lambda t: t.replace("/", "/<wbr>")
+    code = brk(show(repo)) if repo else None
     if kind == "leave":
-        links = (f"<b>Try it live and read the code</b><br>Live demo: <code>{show(url)}</code><br>"
+        links = (f"<b>Try it live and read the code</b><br>Live demo: <code>{brk(show(url))}</code><br>"
                  + (f"Code: <code>{code}</code><br>" if code else "") + "<span style='font-size:7pt;color:#555'>Scan the QR code or type the link.</span>")
         qr = inline_svg(qr_svg)
     else:
-        links = f"Live demo: <b>{url}</b><br>" + (f"Code: <b>{code}</b><br>" if code else "") + "<span style='color:#555'>Same QR as slide 10 and the leave-behind.</span>"
+        links = f"Live demo: <b>{brk(url)}</b><br>" + (f"Code: <b>{code}</b><br>" if code else "") + "<span style='color:#555'>Same QR as slide 10 and the leave-behind.</span>"
         qr = inline_svg(qr_svg)
     h = fill_block(fill_block(h, "QR", qr), "LINKS", links)
     with tempfile.TemporaryDirectory() as td:
@@ -136,20 +137,35 @@ def do_deck(pack, url, repo, qr_png, make_pdf):
             sys.exit(f"Slide 10 has no shape named {need!r}; was the deck layout changed?")
     pic = shapes["qr-image"]; rid = pic._element.blipFill.blip.rEmbed
     pic.part.related_part(rid)._blob = open(qr_png, "rb").read()
-    def set_para(p, text, link=None):
+    import copy
+    def set_para(p, text, link=None, wrap_at=None):
+        """Set a paragraph's text, keeping the first run's formatting. Long links break after a '/'."""
         runs = p.runs
-        runs[0].text = text
-        for r in runs[1:]: r.text = ""
-        if link: runs[0].hyperlink.address = link
+        for r in runs[1:]: r._r.getparent().remove(r._r)
+        r0 = runs[0]; parts = [text]
+        if wrap_at and len(text) > wrap_at and "/" in text:
+            cut = text.rfind("/", 0, wrap_at + 1)
+            cut = cut if cut > 0 else text.find("/")
+            parts = [text[:cut + 1], text[cut + 1:]]
+        r0.text = parts[0]
+        if link: r0.hyperlink.address = link
+        prev = r0._r
+        for part in parts[1:]:
+            br = copy.deepcopy(prev); br.tag = br.tag.replace("}r", "}br")
+            for ch in list(br):
+                if not ch.tag.endswith("}rPr"): br.remove(ch)
+            for ch in br.findall("{*}rPr/{*}hlinkClick"): ch.getparent().remove(ch)
+            nr = copy.deepcopy(r0._r); prev.addnext(br); br.addnext(nr)
+            nr.find("{*}t").text = part; prev = nr
     set_para(shapes["qr-label"].text_frame.paragraphs[0], "Scan to try it")
     ps = shapes["demo-url"].text_frame.paragraphs
     set_para(ps[0], "Try it live")
-    set_para(ps[1], show(url), url)
+    set_para(ps[1], show(url), url, wrap_at=30)
     if len(ps) > 2:
-        set_para(ps[2], f"Code: {show(repo)}" if repo else "Code: linked from the site", repo)
-        if repo and len(show(repo)) > 38:
+        set_para(ps[2], f"Code: {show(repo)}" if repo else "Code: linked from the site", repo, wrap_at=34)
+        if repo and len(show(repo)) > 34:
             from pptx.util import Pt
-            ps[2].runs[0].font.size = Pt(11)
+            for r in ps[2].runs: r.font.size = Pt(11)
     prs.save(out)
     pdf = None
     so = shutil.which("soffice") or shutil.which("libreoffice")
