@@ -29,7 +29,7 @@ Run these on the laptop you will present from, the night before. The full list i
    ```
    It finds the pack folder (the one with `deck/` and `extras/`; pass `--pack PATH` if it can't), makes `extras/qr_final.png` and `.svg` (plus `qr_repo_final.*` with `--repo`), and writes new files ending in `_final`: the TPM deck with slide 10's QR, label and links filled in (`deck/..._final.pptx`, plus a PDF if LibreOffice is installed), `extras/LEAVE_BEHIND_TPM_final.pdf` and `extras/CHEAT_SHEET_TPM_final.pdf` (needs Chrome, Edge or Chromium; otherwise it leaves an `_final.html` to print). Originals are never touched. It refuses placeholder links. Scan the new QR with your phone before you print. For the repo's own `assets/qr.png`, use `python tools/make_qr.py URL --out assets`.
 2. **Test the small open model:** `ollama pull qwen2.5:3b-instruct`, then `python tools/eval_agent.py --brain ollama`. If it scores below the rules brain, present with `NP_BRAIN=rules python -m app` (the rules fallback, same numbers).
-3. **Run the tests:** `make test` (232 tests in CI plus 2 browser walkthroughs via `make test-ui`, then the agent test gate).
+3. **Run the tests:** `make test` (262 tests in CI plus 2 browser walkthroughs via `make test-ui`, then the agent test gate).
 4. **Rehearse the demo:** `docs/DEMO_SCRIPT.md` (TPM-led, 4 minutes); backup video `docs/demo.mp4`.
 
 ## Live product (`app/`): a real, runnable Adoption Insights product
@@ -120,7 +120,7 @@ On the workbook's extended synthetic set it reproduces **all 35 Expected_Results
 The UI follows the deck's brand: white background, charcoal `#222222`, orange `#F28C28` as the accent, teal `#0F5E63` only for verified items, and Arial. Red is used only for critical risk.
 
 ### The agent and its "brain"
-- **Safety guards are always deterministic** and run first: individual surveillance, raw events or PII, small groups (< 5), out-of-scope regions (row-level security by persona), forecasts, causal claims, writes or actions, and ungoverned metrics are refused with a safe alternative. Anything it can't match is never guessed: it says so and offers the 3 closest governed questions it can answer.
+- **Safety guards are always deterministic** and run first. There are 9: prompt injection, individual surveillance, raw events or PII, small groups (< 5), out-of-scope regions (row-level security by persona), forecasts, causal claims, writes or actions, and ungoverned metrics are refused with a safe alternative. After the answer, a **claim check** means the agent never confirms a number the user typed unless its own SQL computed the same figure. Anything it can't match is never guessed: it says so and offers the 3 closest governed questions it can answer.
 - **Deny by default on role.** A missing or unrecognised persona resolves to the least-privileged `guest` role (no data scope; definitions only), in the API, the agent and the static prototype. It never falls back to Executive. In production the role is an SSO token claim, not a request field.
 - **Broad but governed coverage.** Beyond the 21 golden questions it answers panel-style paraphrases: a named agent's health or time saved (M17 study status plus its governed usage), reliability by agent, which agents are used most, engineer-built vs drag-and-drop, team usage (teams under 5 seats suppressed), region comparison, weekly trend inside the closed period, data freshness, alerts, seat reclaim, and outcome metrics that need study data (M06 to M09, refused with the reason).
 - **The brain only routes.** It picks one governed tool (for example `m01`, `m19`, `renewal`). The tool then runs real SQL on the warehouse and returns the answer with metric ID + version + data-as-of and the SQL. The model never states a number.
@@ -170,7 +170,7 @@ Upload your own `events.csv`, `seats.csv` and `registry.csv` on the **Data** tab
 ### Tests
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                      # 232 tests in CI plus 2 browser walkthroughs (Playwright), then the agent test gate: tools/eval_agent.py
+python -m pytest -q                      # 262 tests in CI plus 2 browser walkthroughs (Playwright), then the agent test gate: tools/eval_agent.py
 ```
 `tests/test_improvements.py` (29 tests) covers follow-ups, streaming, the Models screen, confidence and clarifying questions, the why-panel fields, feedback and its review export, and the role switch. `tests/test_ui_features_playwright.py` walks those features in a browser and saves `docs/screenshots/app-14..20`. The UI tests need a Chrome/Chromium (set `CHROME_PATH` if it isn't at `/usr/bin/google-chrome`) and write `docs/screenshots/app-*.png`; they skip if Playwright is missing.
 

@@ -78,7 +78,7 @@ All thresholds above are assumptions to tune after the first live month.
 5. Verify: `/api/health`, eval gate green, `data_as_of` correct, then close the incident.
 
 ## 7. Release flow: DEV -> staging -> prod
-1. **DEV:** feature branch; `make test` locally: 232 tests in CI plus 2 browser walkthroughs (`make test-ui`), then the agent test gate (`eval_agent.py --brain rules`).
+1. **DEV:** feature branch; `make test` locally: 262 tests in CI plus 2 browser walkthroughs (`make test-ui`), then the agent test gate (`eval_agent.py --brain rules`).
 2. **CI (GitHub Actions `tests.yml`):** unit, API, cost, probe tests + eval gate; merge blocked unless all pass.
 3. **Staging:** same image on masked data; `eval_agent.py --brain ollama` against the production model; latency check vs SLO; red-team probes.
 4. **Prod:** manual approval; canary to one role group; watch dashboards 1 and 2 for 24 h; widen.

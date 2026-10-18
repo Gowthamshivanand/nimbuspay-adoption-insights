@@ -22,11 +22,9 @@ The agent's brain is whatever is running: with Ollama and `qwen2.5:3b-instruct` 
 | 3:00 | Set **Users** to 2000 | "Ten times the users: about $78 a month hosted. Cost scales with tokens, not servers. Speed figures are assumptions until benchmarked; the proposed target is p95 under 3 seconds." |
 | 3:15 | **Data**: Load *Critical-risk breach*, then **Executive** | "A privacy incident turns the score red and forces remediation, however good usage looks." |
 | 3:30 | **Audit log** | "Every question I just asked is logged with persona, result, metrics cited and the mode: rules or model. That's the observability you need on day one." |
-| 3:45 | Stop | "How it ships: 164 tests in CI plus a browser walkthrough, then the agent test gate before every release, DEV to staging to production. Measure the work, not the clicks." |
+| 3:45 | Stop | "How it ships: 262 tests in CI plus two browser walkthroughs, then the agent test gate before every release, DEV to staging to production. Measure the work, not the clicks." |
 
-Say the test line exactly as written: "164 tests in CI plus a browser walkthrough, then the agent test gate". Don't round it to "165 in CI".
-
-Test count: the repo now has 232 tests in CI plus 2 browser walkthroughs (the new agent features added 29 API tests and a second walkthrough; the try-to-break-it set and Space tests added the rest). The slide and this line still say 164; either keep it (it is an understatement, not a false claim) or update the slide and say "232 tests in CI plus two browser walkthroughs, then the agent test gate".
+Say the test line exactly as written: "262 tests in CI plus two browser walkthroughs, then the agent test gate". Don't add the two walkthroughs into the CI number ("264 in CI" is wrong).
 
 ## New agent beats (about 75 s; use after 1:55, or as extras if the panel asks)
 | Do | Say |
