@@ -11,13 +11,15 @@ ROUTE_SYSTEM = ("You are the NimbusPay adoption-metrics router. Read the user's 
                 "{\"tool\": <tool>, \"args\": {...}}. Use a governed tool name, \"refuse\" with args.reason for unsafe or "
                 "ungoverned asks, or \"none\" if no governed tool fits. Never answer the question and never write a number.\n"
                 "Tools: {tools}\nRefusal reasons: {reasons}\n"
-                "Args: region (\"Region A\".. for m01), agent (agent ID for agent_health/agent_value), metric (M06-M09 for outcome).")
+                "Args: region (\"Region A\".. for m01), agent (agent ID for agent_health/agent_value), metric (M06-M09 for outcome), "
+                "clarify (for none: \"agent\" if one unnamed agent is meant, \"topic\" if several separate asks have no main one; plain none otherwise).")
 ANSWER_SYSTEM = ("You write the final answer for the NimbusPay adoption-metrics assistant. Use ONLY the governed result below. "
                  "Lead with the direct answer in 1 to 3 short sentences, keep every caveat, never add, round or compute a number, "
                  "and end with 'Source:' and the metric IDs.")
 
-REFUSE_REASONS = ["write", "pii", "individual", "small_group", "scope", "forecast", "causal", "ungoverned", "injection", "gaming"]
-ARG_KEYS = {"m01": {"region"}, "agent_health": {"agent"}, "agent_value": {"agent"}, "outcome": {"metric"}, "refuse": {"reason"}}
+REFUSE_REASONS = ["write", "pii", "individual", "small_group", "scope", "forecast", "causal", "ungoverned", "injection", "gaming", "harmful"]
+ARG_KEYS = {"m01": {"region"}, "agent_health": {"agent"}, "agent_value": {"agent"}, "outcome": {"metric"}, "refuse": {"reason"}, "none": {"clarify"}}
+CLARIFY_SLOTS = {"agent", "topic"}   # none + clarify: ask the user instead of guessing (see Agent.ask and conversation.py)
 OUTCOME_METRICS = {"M06", "M07", "M08", "M09"}
 FT_GENERATE = None     # optional callable(messages, kind) -> str; the Colab notebook and the tests plug a generator in here
 
@@ -139,6 +141,7 @@ def parse_route(text, agents, regions):
     if set(args) - ARG_KEYS.get(tool, set()): return None
     if any(not isinstance(v, str) for v in args.values()): return None
     if tool == "refuse" and args.get("reason") not in REFUSE_REASONS: return None
+    if "clarify" in args and args["clarify"] not in CLARIFY_SLOTS: return None
     if "agent" in args and args["agent"] not in agents: return None
     if "metric" in args and args["metric"] not in OUTCOME_METRICS: return None
     if "region" in args:

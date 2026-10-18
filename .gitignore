@@ -7,3 +7,4 @@ app/var/
 /data/
 dist/
 finetune/eval_report.json
+finetune/.public_cache/

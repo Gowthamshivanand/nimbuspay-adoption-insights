@@ -8,20 +8,21 @@ def code(s): cells.append(dict(cell_type="code", metadata={}, execution_count=No
 md("""
 # NimbusPay agent brain: LoRA fine-tune on a free Colab T4
 
-Synthetic hobby case study. All data is synthetic and English only; no NimbusPay data is used.
+Synthetic hobby case study. The NimbusPay data is synthetic and English only. With `USE_PUBLIC = True` a small, attributed public sample is added (When2Call, xlam-irrelevance, CLINC150, Glaive v2, deepset, Gandalf, OR-Bench, Aegis 2.0 prompts, FeTaQA, smol-smoltalk; see `finetune/data/README.md` for licences). The combined public file is CC-BY-SA-4.0 because FeTaQA is ShareAlike.
 
 **What this trains:** a small open model (default `Qwen/Qwen2.5-1.5B-Instruct`, Apache 2.0) to do two jobs for the Adoption Insights Agent:
-1. **ROUTE / REFUSE**: question + role (+ optional previous question) -> `{"tool": ..., "args": {...}}`, or `refuse` with a reason (write actions, personal data, singling out people, forecasts, causal claims, ungoverned metrics, prompt injection, score gaming), or `none`.
+1. **ROUTE / REFUSE**: question + role (+ optional previous question) -> `{"tool": ..., "args": {...}}`, or `refuse` with a reason (write actions, personal data, singling out people, small groups, other regions, forecasts, causal claims, ungoverned metrics, prompt injection, score gaming, harmful requests), `none`, or `none` + `clarify` ("which agent?" / several asks with no main one).
 2. **ANSWER**: governed SQL result + citations -> a short answer that uses only numbers in that result.
 
 The app keeps the safety architecture: code guards run first, the JSON is schema-checked, every number in an answer must be in the governed result, and anything that fails falls back to the rules engine.
 
-**How to run:** `Runtime > Change runtime type > T4 GPU`, then `Runtime > Run all`. About 15 to 30 minutes for 1.5B. At the end you get a GGUF file and an Ollama `Modelfile`.
+**How to run:** `Runtime > Change runtime type > T4 GPU`, then `Runtime > Run all`. Training time is estimated, not measured: about 6k synthetic + 2.7k public rows is ~2.9M tokens per epoch, so 1.5B with 2 epochs is roughly 45 to 90 minutes on a T4 (set `EPOCHS = 1` to halve it, or `USE_PUBLIC = False` to cut ~a third). At the end you get a GGUF file and an Ollama `Modelfile`.
 """)
 md("## 1. Settings (the model switch is here)")
 code(r'''
-MODEL_CHOICE = "1.5B"     # "1.5B" (default: fp16 LoRA, ~15-30 min)  or  "7B" (4-bit QLoRA, ~1.5-2.5 h, needs a laptop with ~8 GB free RAM to run)
-EPOCHS = None             # None = 2 for 1.5B, 1 for 7B
+MODEL_CHOICE = "1.5B"     # "1.5B" (default: fp16 LoRA, ~45-90 min for 2 epochs, estimate)  or  "7B" (4-bit QLoRA, ~3.5-6 h for 1 epoch with public data, often past a free Colab session: use USE_PUBLIC=False there, ~2.5-4 h)
+EPOCHS = None             # None = 2 for 1.5B, 1 for 7B. EPOCHS = 1 halves the time
+USE_PUBLIC = True         # add finetune/data/public_train.jsonl (attributed public sample, CC-BY-SA-4.0 as a combined file)
 PUSH_TO_HF = False        # True = upload model + dataset to YOUR Hugging Face account (asks for a token, never stored here)
 HF_MODEL_REPO = "nimbuspay-router-qwen2.5-" + MODEL_CHOICE.lower()   # created under your HF username
 HF_DATASET_REPO = "nimbuspay-router-data"
@@ -62,7 +63,7 @@ REPO_DIR = os.environ.get("NP_REPO_DIR") or os.path.join(WORK, "repo")
 if not os.path.isdir(os.path.join(REPO_DIR, "app")):
     sh(f"git clone -q --depth 1 -b {BRANCH} https://github.com/{REPO}.git {REPO_DIR}")
 DATA = os.path.join(WORK, "data"); os.makedirs(DATA, exist_ok=True)
-for name in ("train", "val", "test"):
+for name in ("train", "val", "test", "public_train", "public_eval"):
     dst = os.path.join(DATA, name + ".jsonl")
     if os.path.exists(dst): continue
     local = os.path.join(REPO_DIR, "finetune", "data", name + ".jsonl")
@@ -75,14 +76,18 @@ from app import finetuned as FT, agent as A
 import ft_eval as E
 load = lambda n: [json.loads(l) for l in open(os.path.join(DATA, n + ".jsonl"), encoding="utf-8")]
 train, val, test = load("train"), load("val"), load("test")
+public_eval = load("public_eval")             # eval only: XSTest / When2Call test / CLINC test samples, never trained on
+if USE_PUBLIC:
+    import random; train = train + load("public_train"); random.Random(1).shuffle(train)
 if SMOKE:
     import random; random.Random(0).shuffle(train)
-    train, val = train[:64], val[:16]
+    train, val, public_eval = train[:64], val[:16], public_eval[:8]
     test = [r for r in test if r["source"] in ("golden",)][:12] + [r for r in test if r["task"] == "answer"][:4]
 from collections import Counter
 for n, rows in (("train", train), ("val", val), ("test", test)):
     print(n, len(rows), dict(Counter(r["task"] for r in rows)))
 print("Test sources:", dict(Counter(r["source"].split(":")[0] for r in test)))
+print("Train sources:", dict(Counter(r["source"] for r in train)))
 ''')
 md("## 4. Look at one training example (prompt format)")
 code(r'''
@@ -176,9 +181,12 @@ for task in ("route", "answer"):
         chunk = idx[s:s + B]
         for i, p in zip(chunk, generate_batch([test[i]["messages"][:-1] for i in chunk], MAXNEW[task])): preds[i] = p
 print(f"generated {len(test)} in {time.time() - t0:.0f}s")
-REPORT = dict(base_model=BASE_MODEL, qlora=QLORA, epochs=EPOCHS, train_rows=len(train), smoke=SMOKE, model=E.score(test, preds),
-              rules_on_same_route_rows=E.rules_baseline(test))
+pub_preds = []
+for s in range(0, len(public_eval), B): pub_preds += generate_batch([r["messages"][:-1] for r in public_eval[s:s + B]], MAXNEW["route"])
+REPORT = dict(base_model=BASE_MODEL, qlora=QLORA, epochs=EPOCHS, train_rows=len(train), use_public=USE_PUBLIC, smoke=SMOKE, model=E.score(test, preds),
+              rules_on_same_route_rows=E.rules_baseline(test), public_eval=E.score(public_eval, pub_preds)["route"])
 E.print_report(REPORT["model"])
+pe = REPORT["public_eval"]; print(f"\nPublic eval-only set (XSTest / When2Call / CLINC, n={pe['n']}): tool acc {pe['tool_acc']}%, refusal recall {pe['refusal_recall']}%, over-refusals {pe['over_refusals']}")
 print("\nRules engine on the same route rows: tool acc", REPORT["rules_on_same_route_rows"]["tool_acc"], "%")
 for r, p in list(zip(test, preds))[:6]: print(f"[{r['task']}] {r['question'][:70]!r}\n   gold: {r['messages'][-1]['content'][:120]}\n   pred: {p[:120]}")
 ''')

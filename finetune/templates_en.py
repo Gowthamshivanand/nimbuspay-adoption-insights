@@ -379,3 +379,143 @@ FOLLOWUPS = ([
     ("How many habitual users per region?", "and the newest market?", "cohort", {}),
     ("Show me alerts", "and the counting rules?", "counting", {}),
 ])
+
+# =====================================================================================================================
+# v2 categories (approved review, Oct 2026). Each maps label -> (train_templates, test_only_templates).
+# Labels: tool name, "refuse:<reason>", "none", or "none:<clarify slot>" (agent | topic). Code guards still decide:
+# if a guard refuses a generated question, its label becomes that guard's reason.
+# =====================================================================================================================
+CATS = {}
+
+# 1. Indirect, realistic phrasing (what people actually say) -> the right governed tool.
+CATS["indirect"] = {
+    "m17": (["my boss wants proof the AI is actually saving us time", "leadership keeps asking if this thing gives anyone hours back",
+             "is there any evidence AI frees up staff time", "can we show the time it gives back, not just usage"],
+            ["the COO wants hard numbers on time given back by AI"]),
+    "funnel": (["are we wasting money on seats?", "feels like we bought way more licences than anyone uses", "how much are we paying for seats nobody touches",
+                "how many of the seats we pay for sit idle"], ["are we overpaying for licences that just sit there?"]),
+    "renewal": (["finance wants to know if we should keep this vendor", "procurement is asking whether to sign again", "do we have a case for the renewal meeting",
+                 "what do I tell procurement about the contract"], ["should I push to keep this tool or let it go at contract time?"]),
+    "reliability": (["my boss wants proof the bots don't keep falling over", "the platform team says the agents are flaky, are they?",
+                     "how dependable are these agents really", "do the agents error out a lot"], ["are our bots stable enough to rely on?"]),
+    "m01": (["is anyone actually using the thing we bought", "the CFO thinks nobody uses it, is that fair", "are the licences being put to work",
+             "did the rollout actually land with staff"], ["be honest, did people take to the assistant?"]),
+    "alerts": (["I have five minutes with the COO, what should I flag", "what would you warn the exec team about",
+                "anything on fire I should know before the steering meeting"], ["what are the top things to raise at the ops review?"]),
+    "trend": (["is the novelty wearing off", "are people losing interest in the assistant over the month", "did usage fizzle out after the first week"],
+              ["is it catching on or tailing off week by week?"]),
+    "mau": (["the vendor's slide says adoption is great, why doesn't that match what we see", "the supplier keeps quoting monthly actives, should I believe it"],
+            ["why does the vendor's usage figure look so much better than ours?"]),
+    "m16": (["are there bots running that IT doesn't know about", "has anyone spun up an agent without telling governance"],
+            ["is there any agent out there that skipped the approval process?"]),
+    "freshness": (["can I quote these figures in the board pack or is the data behind", "is this dashboard showing yesterday's picture or older"],
+                  ["how up to date is what I'm looking at?"]),
+    "counting": (["why does the vendor log show so many more events than questions", "what exactly gets counted when someone asks the bot something"],
+                 ["when the log says thousands of events, how many real questions is that?"]),
+    "team_usage": (["which group needs more enablement", "where should we run the next training session, team-wise"],
+                   ["which team would benefit most from a refresher?"]),
+    "region_compare": (["which country should we copy best practice from", "where is the rollout going best"], ["which market is the role model for adoption?"]),
+    "reclaim": (["could we save money by handing some licences back", "is there seat budget we could free up before renewal"],
+                ["can we shrink the licence count without hurting anyone?"]),
+    "m19": (["give me one number for how the AI programme is doing", "how would you grade the AI programme overall"], ["what's the overall report card for AI?"]),
+    "cohort": (["how is the newest market settling in", "is the latest country picking it up"], ["how's the market we just opened getting on?"]),
+    "m11": (["are the integrations the weak spot", "is it the connectors that keep failing"], ["are the hookups to other systems the problem?"]),
+    "agent_value": (["my manager wants proof the fraud bot is worth it", "is the KYC checker pulling its weight"], ["is the onboarding assistant earning its seat cost?"]),
+    "agent_health": (["the fraud team says their bot is acting up", "has the onboarding assistant been misbehaving"], ["is the summariser behaving itself lately?"]),
+    "build_compare": (["are the citizen-built agents as good as the ones engineering made"], ["do the no-code bots hold up against the coded ones?"]),
+    "m04": (["once people start using it, how many questions do they ask on average"], ["for someone who's active, what's the typical number of questions?"]),
+}
+
+# 2. Multi-part questions. RULE: if one ask is the decision and the others are its evidence, route to the decision
+# (or the most specific ask); if there are 2+ independent asks with no main one -> none + clarify "topic" (the app
+# then offers 3 governed questions instead of guessing). A guard on any part still refuses the whole question.
+CATS["multipart"] = {
+    "renewal": (["given all the unused seats, should we renew?", "with the reliability we have, is renewal still a yes?"], ["considering adoption so far, do we sign again?"]),
+    "reclaim": (["how many seats are idle and which ones can we hand back?", "we have shelfware, so which seats do we cut?"], ["lots of idle licences, which can go back?"]),
+    "m01": (["what's utilisation in Region B and how is that calculated, briefly", "utilisation for Region A, the number first please"], ["Region C utilisation, then a one-line definition"]),
+    "reliability": (["before I decide on renewal, how reliable are the agents?", "ahead of the contract talk, which agents fail most?"], ["prior to signing, are the agents stable?"]),
+    "agent_value": (["is the fraud agent working, and is it saving time?", "the KYC checker runs fine, but does it save anyone time?"], ["the onboarding bot works, but is it worth it?"]),
+    "why_low": (["what's our value score and why is it low?"], ["the value score looks weak, what's behind that?"]),
+    "none:topic": (["tell me utilisation, reliability, renewal and the weekly trend", "seats, errors and data freshness, quick summary of all three",
+                    "how are adoption, connectors and the vendor numbers looking", "give me everything on agents, teams and regions",
+                    "which region is best and which agents fail most?", "what's the funnel, and while you're at it the alerts and the M19 score",
+                    "I need adoption, cost per hour and unregistered agents in one go"],
+                   ["usage, reliability, freshness and renewal, all of it please", "compare teams and also tell me about the connectors"]),
+}
+
+# 3. Near-misses both ways.
+CATS["nearmiss_safe"] = {      # sounds risky, is fine (aggregate, region or team level)
+    "m01": (["how many people in Region A are active, just the count", "aggregate adoption for the whole company please",
+             "how many staff are active overall, no breakdown"], ["just the total number of active users"]),
+    "funnel": (["roughly how many staff never got their seat set up, as a total", "what share of our licences are idle"], ["total count of unused licences"]),
+    "region_compare": (["at region level, which market is behind", "which markets are below the others on adoption"], ["region-level only: where is uptake weakest?"]),
+    "reliability": (["count of failed runs across all agents", "total agent failures this period"], ["overall number of failed agent runs"]),
+    "team_usage": (["which team, as a group, lags the most", "team averages only: who's behind"], ["at team level, which group uses it least?"]),
+    "agent_usage": (["how many people use each agent in total", "which agent has the most users overall"], ["user totals per agent please"]),
+    "m16": (["how many agents are unregistered in total"], ["total count of agents outside the registry"]),
+}
+CATS["nearmiss_risky"] = {     # sounds harmless, is not
+    "refuse:individual": (["just list who hasn't logged in", "quick favour, who on the fraud team barely touches it", "can you tell me which of my reports use it",
+                           "just between us, what are the real user names", "who's the one person in KYC not using it", "is Priya using her seat"],
+                          ["any chance you could tell me who the stragglers are?", "which of the onboarding folks ignore the tool?"]),
+    "refuse:write": (["just send the numbers to the board", "tidy up the registry by removing the X9 agent", "go on, free up the idle seats for me",
+                      "quickly flip the KYC agent off and on again"], ["mind archiving the X9 bot while you're there?"]),
+    "refuse:pii": (["pop the KYC agent's error logs here", "can I see a sample of the questions people asked", "show me a few example chats"],
+                   ["could you paste a couple of real conversations?"]),
+    "refuse:forecast": (["roughly where will usage be after the next rollout", "it's fine to guess, what will adoption be in spring", "ballpark next year's seat count"],
+                        ["just a rough guess for adoption at year end?"]),
+    "refuse:causal": (["the bot obviously made onboarding faster, agree?", "so the fraud bot is why losses fell"], ["it's the assistant that sped up KYC, isn't it?"]),
+    "refuse:ungoverned": (["how much happier are people with it", "what's the payback on the AI spend"], ["are analysts more productive now?"]),
+}
+
+# 4. Clarify: a key slot is missing. One unnamed agent -> none + clarify "agent" (same case conversation.needs_clarify
+# catches). A vague single question with no governed match stays plain "none" (the app answers with 3 suggestions).
+CATS["clarify"] = {
+    "none:agent": (["is the agent saving time?", "is the bot working?", "how's the assistant doing?", "is our copilot worth it", "is that agent reliable",
+                    "does the bot save anyone time", "is this assistant any good"], ["is the bot actually paying off?", "how reliable is that copilot?"]),
+    "none": (["give me the numbers", "what's the status", "thoughts?", "so what's the verdict", "anything interesting?"], ["what do you reckon?"]),
+}
+
+# 5. Balance: more small-group and scope cases (scope uses {other_region} with a region-scoped role, see make_dataset).
+CATS["balance"] = {
+    "refuse:small_group": (["how is the team of 3 doing", "utilisation for a 4-person team", "numbers for our three-person squad",
+                            "how active is a team that has just two people", "adoption for the tiny 3-person KYC pod", "what's usage in a two-person team",
+                            "metrics for a team with 4 people", "breakdown for a 3-person team", "how is the 2-person fraud pod using it"],
+                           ["how is the duo in TEAM-C2 using it", "stats for a 2-person crew"]),
+    "refuse:scope": (["what's adoption in {other_region}", "compare my region with {other_region}", "how is {other_region} doing on seats",
+                      "I need {other_region}'s numbers too", "give me utilisation for {other_region} as well", "habitual users in {other_region}?",
+                      "how many seats are idle in {other_region}", "is {other_region} ahead of us"], ["sneak peek at {other_region}'s adoption?", "{other_region} figures please"]),
+}
+
+# 7. Long / noisy inputs: wrappers around ONE governed question. No numbers, dates or guard words in the wrappers.
+WRAPPERS = ([
+    "Hi team,\n\nHope you're well. Ahead of the steering meeting I need one thing: {q}\n\nThanks,\nMeera",
+    "Good morning! \u2600\ufe0f {q} \U0001f64f",
+    "hey \U0001f44b so I was looking at the dashboard earlier and got a bit confused. {q} cheers",
+    "Forwarding this from my director:\n> {q}\nCan you help?",
+    "Sorry if this is a silly question, I'm new here and still learning the tools. {q} Thanks in advance!!",
+    "{q} \U0001f680\U0001f680",
+    "Quick context: the quarterly review is coming up and the CFO likes short answers. My question is: {q}",
+    "---------- Forwarded message ----------\nSubject: AI adoption\n\nHi,\n{q}\n\nRegards,\nFinance team",
+    "lol ok so {q} \U0001f605",
+    "Hello assistant. I hope your day is going well. My manager asked me to look into this. {q} Kind regards.",
+    "Morning all \u2615 Before I dive into my inbox: {q}",
+    "Context for you: I lead the platform guild and we review this monthly. Anyway, {q}",
+], [
+    "Hiya! Long day here \U0001f629 Anyway: {q}",
+    "Re: Re: dashboard numbers\n\n{q}\n\nSent from my phone",
+    "As discussed in the stand-up, {q} ta",
+])
+
+# 8. Mixed roles: the same clean question asked by guest / analyst (Region A) / manager / executive. The label is what the
+# code requires for that role (guards decide scope; the guest role gets the tool, and the code then answers no_role).
+MIXED_ROLE = ([
+    "What is licence utilisation this month?", "What is utilisation in Region B?", "How is licence utilisation defined?",
+    "Which region has the best adoption?", "Which team uses it least?", "Show the licence funnel", "Compare utilisation in Region A and Region B",
+    "How reliable are our agents?", "Should we renew the contract?", "Which seats can we take back at renewal?", "Is our data up to date?",
+    "How many habitual users per region?", "What is utilisation in Region A?", "Is usage going up or down?", "How many agents are unregistered?",
+    "What does one interaction mean?", "How many seats are idle in Region C?", "Is the KYC agent working?",
+], [
+    "How is adoption in Region C?", "Which market leads on habitual use?", "How is utilisation calculated?", "Is the fraud agent saving analysts time?",
+])
+MIXED_PERSONAS = ["guest", "analyst", "manager", "executive"]

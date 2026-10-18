@@ -22,7 +22,7 @@ It is **not** a general assistant. Use it only behind the app's code, because th
 
 ## Training
 - Base: `{{BASE_MODEL}}` (Apache 2.0). Method: {{METHOD}}, r=16, alpha=32, all attention and MLP projections, {{EPOCHS}} epoch(s), lr 2e-4 cosine, max length 768.
-- Data: {{TRAIN_ROWS}} synthetic English rows (`finetune/make_dataset.py`), with loss on the assistant reply only.
+- Data: {{TRAIN_ROWS}} English rows: synthetic NimbusPay rows (`finetune/make_dataset.py`) plus, if enabled, an attributed public sample (`finetune/make_public.py`; licences and attributions in the dataset card, combined public file CC-BY-SA-4.0). Loss on the assistant reply only.
 - Hardware: Google Colab free T4.
 
 ## Evaluation (held-out test set, model only, no guards in front)

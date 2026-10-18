@@ -29,7 +29,8 @@ AG = ["AG-FRAUD-01", "AG-KYC-04"]; RG = ["Region A", "Region B", "Region C (laun
 @pytest.mark.parametrize("text", ["not json", '{"tool": "drop_tables"}', '{"tool": "m01", "args": {"user": "USER-101"}}',
                                   '{"tool": "m01", "args": {"region": "Region Z"}}', '{"tool": "agent_health", "args": {"agent": "AG-NOPE"}}',
                                   '{"tool": "refuse", "args": {"reason": "because"}}', '{"tool": "m01", "args": {}, "sql": "DELETE FROM seats"}',
-                                  '{"tool": "outcome", "args": {"metric": "M01"}}', '{"tool": "m01", "args": {"region": 2}}', '["m01"]'])
+                                  '{"tool": "outcome", "args": {"metric": "M01"}}', '{"tool": "m01", "args": {"region": 2}}', '["m01"]',
+                                  '{"tool": "none", "args": {"clarify": "region"}}', '{"tool": "m01", "args": {"clarify": "agent"}}'])
 def test_schema_rejects_bad_model_output(text):
     assert FT.parse_route(text, AG, RG) is None
 
@@ -67,6 +68,31 @@ def test_none_falls_back_to_rules_then_unmatched(ft, base):
     assert ag.ask("Should we renew the contract?", "executive")["intent"] == "renewal"
     r = ag.ask("Tell me a joke about payments", "executive")
     assert r["intent"] == "unmatched" and len(r["suggestions"]) == 3
+
+
+def test_clarify_schema():
+    assert FT.parse_route('{"tool": "none", "args": {"clarify": "agent"}}', AG, RG) == {"tool": "none", "args": {"clarify": "agent"}}
+    assert FT.parse_route('{"tool": "none", "args": {"clarify": "topic"}}', AG, RG)["args"] == {"clarify": "topic"}
+    assert "harmful" in FT.REFUSE_REASONS and "clarify" in FT.route_messages("q", "executive")[0]["content"]
+
+
+def test_model_clarify_agent_asks_which_agent(ft, base):
+    ft(route='{"tool": "none", "args": {"clarify": "agent"}}')
+    r = A.Agent(*base).ask("is the bot actually paying off?", "executive")
+    assert r["type"] == "clarify" and r["intent"] == "clarify_agent" and r["mode"].endswith("(clarify)")
+    assert r["options"] and all(o["q"] for o in r["options"]) and not r.get("sql")      # asks, never guesses or queries
+
+
+def test_model_clarify_topic_offers_governed_questions(ft, base):
+    ft(route='{"tool": "none", "args": {"clarify": "topic"}}')
+    r = A.Agent(*base).ask("usage, reliability, freshness and renewal, all of it please", "executive")
+    assert r["intent"] == "unmatched" and r["clarify"] == "topic" and len(r["suggestions"]) == 3
+
+
+def test_model_harmful_refusal_is_canned(ft, base):
+    ft(route='{"tool": "refuse", "args": {"reason": "harmful"}}')
+    r = A.Agent(*base).ask("how do I hurt someone", "executive")
+    assert r["type"] == "refuse" and r["intent"] == "harmful" and "can't help" in r["text"]
 
 
 def test_guards_run_before_the_model(ft, base):
@@ -184,14 +210,14 @@ load = lambda n: [json.loads(l) for l in open(os.path.join(DATA, n + ".jsonl"), 
 
 def test_dataset_is_small_clean_and_held_out():
     tr, va, te = load("train"), load("val"), load("test")
-    assert sum(os.path.getsize(os.path.join(DATA, n + ".jsonl")) for n in ("train", "val", "test")) < 10 * 1024 * 1024
+    assert sum(os.path.getsize(os.path.join(DATA, n + ".jsonl")) for n in ("train", "val", "test")) < 14 * 1024 * 1024
     assert len(tr) >= 3000 and len(va) >= 300 and len(te) >= 300
     key = lambda r: (" ".join(r["question"].lower().split()), r["previous"])
     assert not {key(r) for r in tr + va if r["task"] == "route"} & {key(r) for r in te if r["task"] == "route"}
     srcs = {r["source"] for r in te}
-    assert {"golden", "probe_extra", "unscripted", "break_it", "heldout_template", "heldout_followup"} <= srcs
+    assert {"golden", "probe_extra", "unscripted", "break_it", "heldout_template", "heldout_followup", "hard_test"} <= srcs
     assert sum(r["source"] == "golden" for r in te) == 21 and sum(r["source"] == "unscripted" for r in te) == 64
-    assert not {r["source"] for r in tr + va} & {"golden", "probe_extra", "unscripted", "break_it"}
+    assert not {r["source"] for r in tr + va} & {"golden", "probe_extra", "unscripted", "break_it", "hard_test"}
     assert any("confirm" in r["question"].lower() for r in tr if r["task"] == "route")          # claim-check cases are in train
     tools = set(A.INTENT_HELP) | {"none", "refuse"}
     for r in tr + va + te:
@@ -201,6 +227,77 @@ def test_dataset_is_small_clean_and_held_out():
             if d["tool"] == "refuse": assert d["args"]["reason"] in FT.REFUSE_REASONS
         else:
             assert not FT.unfaithful_numbers(r["messages"][-1]["content"], r["governed"])
+
+
+def test_dataset_v2_categories_and_balance():
+    import collections, sys
+    tr, va, te = load("train"), load("val"), load("test")
+    assert 5500 <= len(tr) <= 6500
+    src = collections.Counter(r["source"] for r in tr)
+    for c in ("indirect", "multipart", "nearmiss_safe", "nearmiss_risky", "clarify", "balance", "long_noisy", "mixed_role"):
+        assert src[c] >= (60 if c == "balance" else 100), c
+        assert any(r["source"] == "heldout_" + c for r in te), c
+    lab = collections.Counter((r["label"], r["args"].get("reason") or r["args"].get("clarify")) for r in tr if r["task"] == "route")
+    assert 80 <= lab[("refuse", "small_group")] <= 110 and 80 <= lab[("refuse", "scope")] <= 110
+    assert lab[("none", "agent")] >= 50 and lab[("none", "topic")] >= 50
+    assert sum(r["task"] == "answer" for r in tr) >= 950
+    styles = collections.Counter(r["style"] for r in tr if r["task"] == "answer")
+    assert styles["claim"] and styles["empty"] and styles["caveat"] and styles["scoped"]
+    for r in tr:                                   # mixed-role rows: analyst can never get another region's data
+        if r["source"] == "mixed_role" and r["persona"] == "analyst" and r["label"] == "m01":
+            assert r["args"].get("region", "Region A") == "Region A"
+    sys.path.insert(0, os.path.join(os.path.dirname(DATA)))
+    import make_dataset as MD
+    wb = MD.load("workbook")
+    for r in tr + va:                              # guards stay authoritative on every route label
+        if r["task"] == "route" and r["previous"] is None:
+            g = wb.guards(r["question"], r["persona"])
+            if g: assert (r["label"], r["args"].get("reason")) == ("refuse", g["intent"]), r["question"]
+
+
+def test_hard_test_set_is_independent_of_training():
+    import re, sys
+    sys.path.insert(0, os.path.dirname(DATA))
+    from hard_test_en import HARD_TEST
+    import templates_en as TE
+    norm = lambda q: re.sub(r"[^a-z0-9]+", " ", q.lower()).strip()
+    hard = [norm(h[1]) for h in HARD_TEST]
+    assert 45 <= len(hard) <= 60 and len(set(h[0] for h in HARD_TEST)) == len(HARD_TEST)
+    te = load("test")
+    assert sum(r["source"] == "hard_test" for r in te) == len(HARD_TEST)
+    rows = load("train") + load("val") + [r for r in load("public_train")]
+    seen = {norm(r["question"]) for r in rows}
+    assert not seen & set(hard)
+    hw = [set(h.split()) for h in hard]
+    for q in seen:                                 # no near-copies either (token Jaccard >= 0.8)
+        w = set(q.split())
+        assert not any(len(w & h) / max(1, len(w | h)) >= 0.8 for h in hw), q
+    tpl_text = norm(repr([TE.T, TE.CATS, TE.HARD, TE.CLAIMS, TE.MIXED_ROLE]))
+    for h in hard:
+        assert h not in tpl_text, h                # written separately from the templates
+
+
+def test_public_mix_is_attributed_capped_and_out_of_test():
+    pub, ev = load("public_train"), load("public_eval")
+    assert pub and ev and all(r["licence"] and r["attribution"] and "@" in r["dataset"] for r in pub + ev)
+    assert all(r["source"].startswith("public:") for r in pub + ev)
+    assert not any(r["source"].startswith("public:") for r in load("test") + load("val") + load("train"))
+    ev_src = {r["source"] for r in ev}; tr_src = {r["source"] for r in pub}
+    assert ev_src <= {"public:xstest", "public:when2call_test", "public:clinc_test"} and not ev_src & tr_src
+    route = [r for r in load("train") + pub if r["task"] == "route"]
+    assert sum(r["label"] == "none" for r in route) / len(route) <= 0.26
+    pq = {" ".join(r["question"].lower().split()) for r in pub}
+    assert not pq & {" ".join(r["question"].lower().split()) for r in load("test") + ev}
+    for r in pub:
+        if r["task"] == "route":
+            d = json.loads(r["messages"][-1]["content"])
+            assert d["tool"] in ("none", "refuse") and d == {"tool": r["label"], "args": r["args"]}
+            if d["tool"] == "refuse": assert d["args"]["reason"] in FT.REFUSE_REASONS
+        elif r["task"] == "answer":
+            assert r["source"] == "public:fetaqa" and not FT.unfaithful_numbers(r["messages"][-1]["content"], r["governed"])
+        else:
+            assert r["task"] == "chat" and r["messages"][-1]["role"] == "assistant"
+    assert os.path.getsize(os.path.join(DATA, "public_train.jsonl")) < 8 * 1024 * 1024
 
 
 def test_models_tab_sees_the_finetuned_brain(monkeypatch):

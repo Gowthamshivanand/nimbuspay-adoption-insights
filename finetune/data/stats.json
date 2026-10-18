@@ -2,223 +2,320 @@
  "seed": 20261018,
  "language": "English only (synthetic)",
  "train": {
-  "total": 4117,
+  "total": 5960,
   "by_task": {
-   "answer": 471,
-   "route": 3646
+   "route": 4911,
+   "answer": 1049
   },
   "by_source": {
-   "scenario": 471,
-   "template": 3263,
-   "followup": 383
+   "template": 2522,
+   "scenario": 1049,
+   "followup": 393,
+   "long_noisy": 470,
+   "mixed_role": 219,
+   "nearmiss_risky": 245,
+   "multipart": 224,
+   "indirect": 401,
+   "nearmiss_safe": 173,
+   "clarify": 176,
+   "balance": 88
   },
   "by_style": {
-   "casual+abbrev": 622,
-   "casual": 656,
-   "clean": 970,
-   "casual+typo": 718,
-   "typo": 574,
-   "abbrev": 106
+   "casual": 792,
+   "clean": 1247,
+   "casual+typo": 786,
+   "casual+abbrev": 766,
+   "typo": 679,
+   "noisy": 470,
+   "abbrev": 171
   },
   "by_label": {
-   "agent_health": 142,
-   "agent_usage": 89,
-   "agent_value": 110,
-   "alerts": 65,
-   "build_compare": 47,
-   "cohort": 70,
-   "counting": 70,
-   "define_m01": 84,
-   "freshness": 98,
-   "funnel": 100,
-   "m01": 301,
-   "m02_regions": 93,
-   "m04": 61,
-   "m10": 49,
-   "m11": 83,
-   "m16": 93,
-   "m17": 111,
-   "m18": 51,
-   "m19": 102,
-   "m20": 49,
-   "mau": 51,
-   "none": 116,
-   "outcome": 59,
-   "reclaim": 96,
-   "refuse:causal": 61,
-   "refuse:forecast": 83,
-   "refuse:gaming": 70,
-   "refuse:individual": 121,
-   "refuse:injection": 109,
-   "refuse:pii": 75,
-   "refuse:scope": 42,
-   "refuse:small_group": 25,
-   "refuse:ungoverned": 70,
-   "refuse:write": 185,
-   "region_compare": 98,
-   "reliability": 145,
-   "renewal": 84,
-   "team_usage": 86,
-   "trend": 69,
-   "why_drop": 79,
-   "why_low": 54
+   "agent_health": 158,
+   "agent_usage": 101,
+   "agent_value": 148,
+   "alerts": 87,
+   "build_compare": 59,
+   "cohort": 89,
+   "counting": 94,
+   "define_m01": 99,
+   "freshness": 111,
+   "funnel": 170,
+   "m01": 376,
+   "m02_regions": 97,
+   "m04": 65,
+   "m10": 52,
+   "m11": 93,
+   "m16": 123,
+   "m17": 127,
+   "m18": 54,
+   "m19": 107,
+   "m20": 51,
+   "mau": 63,
+   "none": 160,
+   "none:agent": 112,
+   "none:topic": 89,
+   "outcome": 52,
+   "reclaim": 143,
+   "refuse:causal": 89,
+   "refuse:forecast": 113,
+   "refuse:gaming": 67,
+   "refuse:individual": 188,
+   "refuse:injection": 87,
+   "refuse:pii": 114,
+   "refuse:scope": 93,
+   "refuse:small_group": 95,
+   "refuse:ungoverned": 89,
+   "refuse:write": 212,
+   "region_compare": 143,
+   "reliability": 221,
+   "renewal": 151,
+   "team_usage": 135,
+   "trend": 103,
+   "why_drop": 66,
+   "why_low": 65
+  },
+  "answer_by_style": {
+   "casual+abbrev": 142,
+   "casual": 143,
+   "clean": 258,
+   "typo": 139,
+   "casual+typo": 169,
+   "scoped": 33,
+   "claim": 60,
+   "caveat": 69,
+   "empty": 12,
+   "abbrev": 24
   },
   "language": {
-   "en": 4117
+   "en": 5960
   }
  },
  "val": {
-  "total": 350,
+  "total": 534,
   "by_task": {
-   "route": 300,
-   "answer": 50
+   "route": 450,
+   "answer": 84
   },
   "by_source": {
-   "template": 276,
-   "followup": 24,
-   "scenario": 50
+   "long_noisy": 35,
+   "multipart": 20,
+   "template": 238,
+   "indirect": 44,
+   "nearmiss_risky": 25,
+   "mixed_role": 15,
+   "followup": 29,
+   "nearmiss_safe": 14,
+   "balance": 13,
+   "clarify": 17,
+   "scenario": 84
   },
   "by_style": {
-   "casual": 52,
-   "clean": 96,
-   "casual+typo": 53,
-   "casual+abbrev": 47,
-   "typo": 49,
-   "abbrev": 3
+   "noisy": 35,
+   "typo": 77,
+   "casual+abbrev": 73,
+   "clean": 113,
+   "casual+typo": 71,
+   "casual": 71,
+   "abbrev": 10
   },
   "by_label": {
-   "agent_health": 16,
-   "agent_usage": 6,
-   "agent_value": 14,
-   "alerts": 6,
-   "build_compare": 7,
-   "cohort": 6,
-   "counting": 4,
-   "define_m01": 9,
-   "freshness": 7,
-   "funnel": 7,
-   "m01": 21,
-   "m02_regions": 6,
-   "m04": 4,
-   "m10": 3,
-   "m11": 7,
+   "agent_health": 14,
+   "agent_usage": 9,
+   "agent_value": 10,
+   "alerts": 7,
+   "build_compare": 2,
+   "cohort": 10,
+   "counting": 10,
+   "define_m01": 5,
+   "freshness": 15,
+   "funnel": 18,
+   "m01": 38,
+   "m02_regions": 12,
+   "m04": 7,
+   "m10": 4,
+   "m11": 6,
    "m16": 9,
-   "m17": 10,
-   "m18": 3,
-   "m19": 8,
+   "m17": 9,
+   "m18": 5,
+   "m19": 11,
    "m20": 6,
-   "mau": 3,
-   "none": 6,
-   "outcome": 6,
-   "reclaim": 10,
-   "refuse:causal": 5,
-   "refuse:forecast": 11,
-   "refuse:gaming": 7,
-   "refuse:individual": 10,
-   "refuse:injection": 1,
-   "refuse:pii": 8,
-   "refuse:scope": 4,
-   "refuse:small_group": 2,
-   "refuse:ungoverned": 6,
-   "refuse:write": 13,
-   "region_compare": 11,
-   "reliability": 15,
-   "renewal": 4,
-   "team_usage": 5,
-   "trend": 4,
+   "mau": 8,
+   "none": 13,
+   "none:agent": 9,
+   "none:topic": 7,
+   "outcome": 5,
+   "reclaim": 13,
+   "refuse:causal": 7,
+   "refuse:forecast": 17,
+   "refuse:gaming": 3,
+   "refuse:individual": 17,
+   "refuse:injection": 8,
+   "refuse:pii": 4,
+   "refuse:scope": 11,
+   "refuse:small_group": 11,
+   "refuse:ungoverned": 10,
+   "refuse:write": 19,
+   "region_compare": 12,
+   "reliability": 25,
+   "renewal": 14,
+   "team_usage": 10,
+   "trend": 5,
    "why_drop": 6,
-   "why_low": 4
+   "why_low": 9
+  },
+  "answer_by_style": {
+   "clean": 17,
+   "abbrev": 3,
+   "casual+typo": 11,
+   "casual+abbrev": 9,
+   "casual": 16,
+   "typo": 8,
+   "caveat": 9,
+   "empty": 2,
+   "scoped": 2,
+   "claim": 7
   },
   "language": {
-   "en": 350
+   "en": 534
   }
  },
  "test": {
-  "total": 605,
+  "total": 898,
   "by_task": {
-   "route": 495,
-   "answer": 110
+   "route": 768,
+   "answer": 130
   },
   "by_source": {
    "golden": 21,
    "probe_extra": 8,
    "unscripted": 64,
    "break_it": 22,
+   "hard_test": 50,
    "heldout_template": 327,
    "new_alias": 24,
-   "heldout_followup": 29,
-   "scenario": 110
+   "heldout_indirect": 63,
+   "heldout_multipart": 24,
+   "heldout_nearmiss_safe": 21,
+   "heldout_nearmiss_risky": 21,
+   "heldout_clarify": 9,
+   "heldout_balance": 12,
+   "heldout_long_noisy": 60,
+   "heldout_mixed_role": 12,
+   "heldout_followup": 30,
+   "scenario": 130
   },
   "by_style": {
    "repo": 115,
-   "clean": 126,
-   "casual": 57,
-   "typo": 62,
-   "abbrev": 15,
-   "casual+abbrev": 60,
-   "casual+typo": 60
+   "hard": 50,
+   "clean": 189,
+   "casual": 103,
+   "typo": 78,
+   "casual+typo": 70,
+   "casual+abbrev": 82,
+   "abbrev": 21,
+   "noisy": 60
   },
   "by_label": {
-   "agent_health": 29,
-   "agent_usage": 10,
-   "agent_value": 20,
-   "alerts": 7,
-   "build_compare": 7,
-   "cohort": 12,
-   "counting": 14,
-   "define_m01": 8,
-   "freshness": 11,
-   "funnel": 11,
-   "m01": 41,
-   "m02_regions": 7,
-   "m04": 7,
+   "agent_health": 34,
+   "agent_usage": 16,
+   "agent_value": 32,
+   "alerts": 13,
+   "build_compare": 11,
+   "cohort": 17,
+   "counting": 18,
+   "define_m01": 9,
+   "freshness": 19,
+   "funnel": 22,
+   "m01": 68,
+   "m02_regions": 13,
+   "m04": 12,
    "m10": 7,
-   "m11": 7,
-   "m16": 8,
-   "m17": 12,
+   "m11": 11,
+   "m16": 19,
+   "m17": 19,
    "m18": 7,
-   "m19": 10,
-   "m20": 7,
-   "mau": 9,
-   "none": 15,
+   "m19": 13,
+   "m20": 8,
+   "mau": 16,
+   "none": 20,
+   "none:agent": 8,
+   "none:topic": 8,
    "outcome": 15,
-   "reclaim": 11,
-   "refuse:causal": 13,
-   "refuse:forecast": 14,
-   "refuse:gaming": 9,
-   "refuse:individual": 19,
-   "refuse:injection": 12,
-   "refuse:pii": 16,
-   "refuse:scope": 11,
-   "refuse:small_group": 4,
-   "refuse:ungoverned": 13,
-   "refuse:write": 26,
-   "region_compare": 10,
-   "reliability": 14,
-   "renewal": 9,
-   "team_usage": 12,
-   "trend": 7,
-   "why_drop": 10,
-   "why_low": 4
+   "reclaim": 19,
+   "refuse:causal": 18,
+   "refuse:forecast": 21,
+   "refuse:gaming": 10,
+   "refuse:individual": 28,
+   "refuse:injection": 17,
+   "refuse:pii": 23,
+   "refuse:scope": 23,
+   "refuse:small_group": 12,
+   "refuse:ungoverned": 18,
+   "refuse:write": 31,
+   "region_compare": 19,
+   "reliability": 28,
+   "renewal": 17,
+   "team_usage": 20,
+   "trend": 11,
+   "why_drop": 9,
+   "why_low": 9
+  },
+  "answer_by_style": {
+   "casual": 20,
+   "casual+typo": 19,
+   "casual+abbrev": 19,
+   "clean": 23,
+   "abbrev": 4,
+   "typo": 18,
+   "caveat": 6,
+   "empty": 4,
+   "scoped": 5,
+   "claim": 12
   },
   "language": {
-   "en": 605
+   "en": 898
   }
  },
  "notes": {
-  "dropped_overlap_with_test": 282,
-  "rules_agree_clean": 989,
-  "rules_disagree_clean": 422,
-  "relabelled_by_guard": 16
+  "dropped_overlap_with_test": 221,
+  "rules_agree_clean": 964,
+  "rules_disagree_clean": 695,
+  "relabelled_clarify": 3,
+  "relabelled_by_guard": 12,
+  "long_noisy_relabelled": 5
  },
  "sizes_bytes": {
-  "train": 5717427,
-  "val": 494775,
-  "test": 887856
+  "train": 9352000,
+  "val": 830702,
+  "test": 1401196
  },
  "sample_rules_disagreements": [
   {
    "q": "What share of assigned seats are active?",
+   "persona": "manager",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "funnel",
+    {}
+   ]
+  },
+  {
+   "q": "What share of assigned seats are active?",
+   "persona": "executive",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "funnel",
+    {}
+   ]
+  },
+  {
+   "q": "What share of assigned seats are active?",
    "persona": "fraud_ops_lead",
    "label": [
     "m01",
@@ -226,54 +323,6 @@
    ],
    "rules": [
     "funnel",
-    {}
-   ]
-  },
-  {
-   "q": "What share of assigned seats are active?",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "funnel",
-    {}
-   ]
-  },
-  {
-   "q": "What share of assigned seats are active?",
-   "persona": "fraud_ops_lead",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "funnel",
-    {}
-   ]
-  },
-  {
-   "q": "What share of assigned seats are active?",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "funnel",
-    {}
-   ]
-  },
-  {
-   "q": "How many of our users are active?",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
     {}
    ]
   },
@@ -291,7 +340,7 @@
   },
   {
    "q": "How many of our users are active?",
-   "persona": "executive",
+   "persona": "manager",
    "label": [
     "m01",
     {}
@@ -303,7 +352,7 @@
   },
   {
    "q": "How many of our users are active?",
-   "persona": "regional_lead",
+   "persona": "manager",
    "label": [
     "m01",
     {}
@@ -315,166 +364,6 @@
   },
   {
    "q": "What % of licences are actually being used",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "what % of licences are actually being used",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "what % of licences are actually being used",
-   "persona": "regional_lead",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "what % of licences are actually being used",
-   "persona": "executive",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "utilisation for Region C (the launch cohort)?",
-   "persona": "executive",
-   "label": [
-    "m01",
-    {
-     "region": "Region C"
-    }
-   ],
-   "rules": [
-    "cohort",
-    {}
-   ]
-  },
-  {
-   "q": "Utilisation for Region C (the launch cohort)?",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {
-     "region": "Region C"
-    }
-   ],
-   "rules": [
-    "cohort",
-    {}
-   ]
-  },
-  {
-   "q": "What portion of assigned licences see real use",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "what portion of assigned licences see real use",
-   "persona": "platform_engineer",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "What portion of assigned licences see real use",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "What portion of assigned licences see real use",
-   "persona": "regional_lead",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "Validate that 50 users are active",
-   "persona": "finance",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "validate that 50 users are active",
-   "persona": "platform_engineer",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "Validate that 50 users are active",
-   "persona": "executive",
-   "label": [
-    "m01",
-    {}
-   ],
-   "rules": [
-    "none",
-    {}
-   ]
-  },
-  {
-   "q": "validate that 50 users are active",
    "persona": "fraud_ops_lead",
    "label": [
     "m01",
@@ -486,26 +375,126 @@
    ]
   },
   {
-   "q": "Is it true that 95% of seats are used?",
+   "q": "What % of licences are actually being used",
+   "persona": "analyst",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "what % of licences are actually being used",
    "persona": "regional_lead",
    "label": [
     "m01",
     {}
    ],
    "rules": [
-    "funnel",
+    "none",
     {}
    ]
   },
   {
-   "q": "Is it true that 95% of seats are used?",
+   "q": "What is utilisation in Region C (the launch cohort)?",
+   "persona": "executive",
+   "label": [
+    "m01",
+    {
+     "region": "Region C"
+    }
+   ],
+   "rules": [
+    "cohort",
+    {}
+   ]
+  },
+  {
+   "q": "M01 for Region C (the launch cohort)",
+   "persona": "platform_engineer",
+   "label": [
+    "m01",
+    {
+     "region": "Region C"
+    }
+   ],
+   "rules": [
+    "cohort",
+    {}
+   ]
+  },
+  {
+   "q": "what portion of assigned licences see real use",
+   "persona": "fraud_ops_lead",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "What portion of assigned licences see real use",
+   "persona": "regional_lead",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "What portion of assigned licences see real use",
+   "persona": "finance",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "validate that 50 users are active",
    "persona": "platform_engineer",
    "label": [
     "m01",
     {}
    ],
    "rules": [
-    "funnel",
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "Validate that 50 users are active",
+   "persona": "finance",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "Validate that 50 users are active",
+   "persona": "regional_lead",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "none",
     {}
    ]
   },
@@ -523,7 +512,19 @@
   },
   {
    "q": "Is it true that 95% of seats are used?",
-   "persona": "regional_lead",
+   "persona": "platform_engineer",
+   "label": [
+    "m01",
+    {}
+   ],
+   "rules": [
+    "funnel",
+    {}
+   ]
+  },
+  {
+   "q": "Is it true that 95% of seats are used?",
+   "persona": "platform_engineer",
    "label": [
     "m01",
     {}
@@ -546,12 +547,12 @@
    ]
   },
   {
-   "q": "Region A market: how many folks are on it?",
-   "persona": "finance",
+   "q": "region c: how many folks are on it?",
+   "persona": "platform_engineer",
    "label": [
     "m01",
     {
-     "region": "Region A"
+     "region": "Region C"
     }
    ],
    "rules": [
@@ -561,61 +562,39 @@
   },
   {
    "q": "Out of everyone with a seat, how many actually got a response from an agent?",
-   "persona": "platform_engineer",
+   "persona": "finance",
    "label": [
     "m01",
     {}
    ],
    "rules": [
     "funnel",
+    {}
+   ]
+  },
+  {
+   "q": "level of adoption in Region C (the launch cohort) this period",
+   "persona": "platform_engineer",
+   "label": [
+    "m01",
+    {
+     "region": "Region C"
+    }
+   ],
+   "rules": [
+    "cohort",
     {}
    ]
   },
   {
    "q": "Tell leadership 99% of seats are in use",
-   "persona": "regional_lead",
+   "persona": "analyst",
    "label": [
     "m01",
     {}
    ],
    "rules": [
     "funnel",
-    {}
-   ]
-  },
-  {
-   "q": "How do you calculate M01?",
-   "persona": "platform_engineer",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
-    {}
-   ]
-  },
-  {
-   "q": "how do you calculate M01?",
-   "persona": "platform_engineer",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
-    {}
-   ]
-  },
-  {
-   "q": "How do you calculate M01?",
-   "persona": "finance",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
     {}
    ]
   },
@@ -632,7 +611,7 @@
    ]
   },
   {
-   "q": "What counts towards utilisation",
+   "q": "How do you calculate M01?",
    "persona": "fraud_ops_lead",
    "label": [
     "define_m01",
@@ -644,8 +623,8 @@
    ]
   },
   {
-   "q": "what counts towards utilisation",
-   "persona": "platform_engineer",
+   "q": "how do you calculate M01?",
+   "persona": "regional_lead",
    "label": [
     "define_m01",
     {}
@@ -657,7 +636,7 @@
   },
   {
    "q": "What counts towards utilisation",
-   "persona": "platform_engineer",
+   "persona": "manager",
    "label": [
     "define_m01",
     {}
@@ -669,7 +648,19 @@
   },
   {
    "q": "What counts towards utilisation",
-   "persona": "platform_engineer",
+   "persona": "finance",
+   "label": [
+    "define_m01",
+    {}
+   ],
+   "rules": [
+    "m01",
+    {}
+   ]
+  },
+  {
+   "q": "What counts towards utilisation",
+   "persona": "finance",
    "label": [
     "define_m01",
     {}
@@ -693,7 +684,7 @@
   },
   {
    "q": "Is a login counted in utilisation?",
-   "persona": "finance",
+   "persona": "executive",
    "label": [
     "define_m01",
     {}
@@ -705,31 +696,7 @@
   },
   {
    "q": "Is a login counted in utilisation?",
-   "persona": "finance",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
-    {}
-   ]
-  },
-  {
-   "q": "Is a login counted in utilisation?",
-   "persona": "finance",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
-    {}
-   ]
-  },
-  {
-   "q": "explain the utilisation formula",
-   "persona": "finance",
+   "persona": "executive",
    "label": [
     "define_m01",
     {}
@@ -741,19 +708,7 @@
   },
   {
    "q": "Explain the utilisation formula",
-   "persona": "finance",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
-    {}
-   ]
-  },
-  {
-   "q": "explain the utilisation formula",
-   "persona": "finance",
+   "persona": "regional_lead",
    "label": [
     "define_m01",
     {}
@@ -765,6 +720,42 @@
   },
   {
    "q": "Explain the utilisation formula",
+   "persona": "regional_lead",
+   "label": [
+    "define_m01",
+    {}
+   ],
+   "rules": [
+    "m01",
+    {}
+   ]
+  },
+  {
+   "q": "Explain the utilisation formula",
+   "persona": "platform_engineer",
+   "label": [
+    "define_m01",
+    {}
+   ],
+   "rules": [
+    "m01",
+    {}
+   ]
+  },
+  {
+   "q": "what's the M01 formula",
+   "persona": "manager",
+   "label": [
+    "define_m01",
+    {}
+   ],
+   "rules": [
+    "m01",
+    {}
+   ]
+  },
+  {
+   "q": "what's the M01 formula",
    "persona": "platform_engineer",
    "label": [
     "define_m01",
@@ -777,43 +768,7 @@
   },
   {
    "q": "What's the M01 formula",
-   "persona": "finance",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
-    {}
-   ]
-  },
-  {
-   "q": "what's the M01 formula",
-   "persona": "platform_engineer",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
-    {}
-   ]
-  },
-  {
-   "q": "what's the M01 formula",
-   "persona": "platform_engineer",
-   "label": [
-    "define_m01",
-    {}
-   ],
-   "rules": [
-    "m01",
-    {}
-   ]
-  },
-  {
-   "q": "what's the M01 formula",
-   "persona": "finance",
+   "persona": "regional_lead",
    "label": [
     "define_m01",
     {}
@@ -825,7 +780,7 @@
   },
   {
    "q": "Spell out exactly how the utilisation metric is worked out",
-   "persona": "platform_engineer",
+   "persona": "regional_lead",
    "label": [
     "define_m01",
     {}
@@ -837,7 +792,7 @@
   },
   {
    "q": "which events make someone count as active for M01?",
-   "persona": "finance",
+   "persona": "analyst",
    "label": [
     "define_m01",
     {}
@@ -849,6 +804,18 @@
   },
   {
    "q": "M02 by market",
+   "persona": "platform_engineer",
+   "label": [
+    "m02_regions",
+    {}
+   ],
+   "rules": [
+    "region_compare",
+    {}
+   ]
+  },
+  {
+   "q": "M02 by market",
    "persona": "fraud_ops_lead",
    "label": [
     "m02_regions",
@@ -872,7 +839,7 @@
    ]
   },
   {
-   "q": "M02 by market",
+   "q": "Who comes back every week, by region",
    "persona": "regional_lead",
    "label": [
     "m02_regions",
@@ -884,18 +851,6 @@
    ]
   },
   {
-   "q": "M02 by market",
-   "persona": "finance",
-   "label": [
-    "m02_regions",
-    {}
-   ],
-   "rules": [
-    "region_compare",
-    {}
-   ]
-  },
-  {
    "q": "Who comes back every week, by region",
    "persona": "platform_engineer",
    "label": [
@@ -909,7 +864,7 @@
   },
   {
    "q": "Who comes back every week, by region",
-   "persona": "executive",
+   "persona": "analyst",
    "label": [
     "m02_regions",
     {}
@@ -920,7 +875,7 @@
    ]
   },
   {
-   "q": "who comes back every week, by region",
+   "q": "Where do people keep coming back week after week, market by market?",
    "persona": "fraud_ops_lead",
    "label": [
     "m02_regions",
@@ -932,7 +887,7 @@
    ]
   },
   {
-   "q": "Who comes back every week, by region",
+   "q": "regular-use rate split by market please",
    "persona": "fraud_ops_lead",
    "label": [
     "m02_regions",
@@ -940,106 +895,506 @@
    ],
    "rules": [
     "region_compare",
+    {}
+   ]
+  },
+  {
+   "q": "Give me the ramp-up picture for the country we just switched on",
+   "persona": "platform_engineer",
+   "label": [
+    "cohort",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "M11 please",
+   "persona": "finance",
+   "label": [
+    "m11",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "M11 please",
+   "persona": "platform_engineer",
+   "label": [
+    "m11",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "M11 please",
+   "persona": "platform_engineer",
+   "label": [
+    "m11",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "What's the integration failure rate",
+   "persona": "regional_lead",
+   "label": [
+    "m11",
+    {}
+   ],
+   "rules": [
+    "reliability",
+    {}
+   ]
+  },
+  {
+   "q": "What's the integration failure rate",
+   "persona": "finance",
+   "label": [
+    "m11",
+    {}
+   ],
+   "rules": [
+    "reliability",
+    {}
+   ]
+  },
+  {
+   "q": "what's the integration failure rate",
+   "persona": "manager",
+   "label": [
+    "m11",
+    {}
+   ],
+   "rules": [
+    "reliability",
+    {}
+   ]
+  },
+  {
+   "q": "Where are the integration calls breaking down most often?",
+   "persona": "platform_engineer",
+   "label": [
+    "m11",
+    {}
+   ],
+   "rules": [
+    "reliability",
+    {}
+   ]
+  },
+  {
+   "q": "M16 count",
+   "persona": "analyst",
+   "label": [
+    "m16",
+    {}
+   ],
+   "rules": [
+    "none",
+    {}
+   ]
+  },
+  {
+   "q": "M16 count",
+   "persona": "platform_engineer",
+   "label": [
+    "m16",
+    {}
+   ],
+   "rules": [
+    "none",
     {}
    ]
   }
  ],
  "relabelled_by_guard": [
   {
+   "q": "how much time does the assistant save us",
+   "persona": "analyst",
+   "template": "m17",
+   "now": "clarify"
+  },
+  {
+   "q": "How much time does the assistant save us",
+   "persona": "manager",
+   "template": "m17",
+   "now": "clarify"
+  },
+  {
+   "q": "how much time does the assistant save us",
+   "persona": "finance",
+   "template": "m17",
+   "now": "clarify"
+  },
+  {
+   "q": "push the new prompt to the KYC agent",
+   "persona": "manager",
+   "template": "refuse:write",
+   "now": "guard:pii"
+  },
+  {
    "q": "Push the new prompt to the KYC agent",
+   "persona": "manager",
+   "template": "refuse:write",
+   "now": "guard:pii"
+  },
+  {
+   "q": "push the new prompt to the KYC agent",
+   "persona": "platform_engineer",
+   "template": "refuse:write",
+   "now": "guard:pii"
+  },
+  {
+   "q": "send me the chat history",
+   "persona": "analyst",
+   "template": "refuse:pii",
+   "now": "guard:write"
+  },
+  {
+   "q": "send me the chat history",
+   "persona": "fraud_ops_lead",
+   "template": "refuse:pii",
+   "now": "guard:write"
+  },
+  {
+   "q": "send me the chat history",
+   "persona": "finance",
+   "template": "refuse:pii",
+   "now": "guard:write"
+  },
+  {
+   "q": "show the team with 4 people",
+   "persona": "manager",
+   "template": "refuse:small_group",
+   "now": "guard:individual"
+  },
+  {
+   "q": "show the team with 4 people",
+   "persona": "analyst",
+   "template": "refuse:small_group",
+   "now": "guard:individual"
+  },
+  {
+   "q": "show the team with 4 people",
+   "persona": "finance",
+   "template": "refuse:small_group",
+   "now": "guard:individual"
+  },
+  {
+   "q": "What's the minimum activity per person to count as active so we can hit the target",
+   "persona": "finance",
+   "template": "refuse:gaming",
+   "now": "guard:individual"
+  },
+  {
+   "q": "what's the minimum activity per person to count as active so we can hit the target",
    "persona": "executive",
-   "template": "refuse:write",
-   "guard": "pii"
-  },
-  {
-   "q": "push the new prompt to the KYC agent",
-   "persona": "fraud_ops_lead",
-   "template": "refuse:write",
-   "guard": "pii"
-  },
-  {
-   "q": "push the new prompt to the KYC agent",
-   "persona": "finance",
-   "template": "refuse:write",
-   "guard": "pii"
-  },
-  {
-   "q": "push the new prompt to the KYC agent",
-   "persona": "regional_lead",
-   "template": "refuse:write",
-   "guard": "pii"
-  },
-  {
-   "q": "send me the chat history",
-   "persona": "fraud_ops_lead",
-   "template": "refuse:pii",
-   "guard": "write"
-  },
-  {
-   "q": "Send me the chat history",
-   "persona": "platform_engineer",
-   "template": "refuse:pii",
-   "guard": "write"
-  },
-  {
-   "q": "Send me the chat history",
-   "persona": "finance",
-   "template": "refuse:pii",
-   "guard": "write"
-  },
-  {
-   "q": "send me the chat history",
-   "persona": "regional_lead",
-   "template": "refuse:pii",
-   "guard": "write"
-  },
-  {
-   "q": "show the team with 4 people",
-   "persona": "fraud_ops_lead",
-   "template": "refuse:small_group",
-   "guard": "individual"
-  },
-  {
-   "q": "Show the team with 4 people",
-   "persona": "platform_engineer",
-   "template": "refuse:small_group",
-   "guard": "individual"
-  },
-  {
-   "q": "show the team with 4 people",
-   "persona": "finance",
-   "template": "refuse:small_group",
-   "guard": "individual"
-  },
-  {
-   "q": "Show the team with 4 people",
-   "persona": "regional_lead",
-   "template": "refuse:small_group",
-   "guard": "individual"
-  },
-  {
-   "q": "what's the minimum activity per person to count as active so we can hit the target",
-   "persona": "fraud_ops_lead",
    "template": "refuse:gaming",
-   "guard": "individual"
+   "now": "guard:individual"
   },
   {
-   "q": "what's the minimum activity per person to count as active so we can hit the target",
-   "persona": "regional_lead",
-   "template": "refuse:gaming",
-   "guard": "individual"
-  },
-  {
-   "q": "what's the minimum activity per person to count as active so we can hit the target",
-   "persona": "platform_engineer",
-   "template": "refuse:gaming",
-   "guard": "individual"
-  },
-  {
-   "q": "what's the minimum activity per person to count as active so we can hit the target",
+   "q": "What's the minimum activity per person to count as active so we can hit the target",
    "persona": "finance",
    "template": "refuse:gaming",
-   "guard": "individual"
+   "now": "guard:individual"
   }
- ]
+ ],
+ "public": {
+  "skipped_sources": [],
+  "dropped_overlap": 1,
+  "relabelled_by_guard": 192,
+  "none_cap": {
+   "cap": 0.25,
+   "synthetic_none": 361,
+   "public_none_requested": 1679,
+   "public_none_allowed": 1304,
+   "kept_fraction": 0.777
+  },
+  "train": {
+   "total": 2706,
+   "by_source": {
+    "smol_smoltalk": 600,
+    "when2call": 465,
+    "glaive_fc_v2": 232,
+    "xlam_irrelevance": 309,
+    "gandalf": 200,
+    "deepset_injections": 97,
+    "fetaqa": 360,
+    "aegis2": 150,
+    "clinc_oos": 177,
+    "or_bench": 116
+   },
+   "by_task": {
+    "chat": 600,
+    "route": 1746,
+    "answer": 360
+   },
+   "by_label": {
+    "chat": 600,
+    "none": 1192,
+    "refuse:individual": 47,
+    "refuse:pii": 85,
+    "refuse:injection": 236,
+    "answer": 360,
+    "refuse:harmful": 130,
+    "refuse:forecast": 38,
+    "refuse:ungoverned": 5,
+    "refuse:causal": 5,
+    "refuse:write": 8
+   }
+  },
+  "eval": {
+   "total": 350,
+   "by_source": {
+    "xstest": 100,
+    "when2call_test": 100,
+    "clinc_test": 150
+   },
+   "by_label": {
+    "none": 288,
+    "refuse:harmful": 40,
+    "refuse:pii": 13,
+    "refuse:individual": 6,
+    "refuse:write": 1,
+    "refuse:forecast": 2
+   }
+  },
+  "none_share_of_routing": 0.233,
+  "sources": {
+   "when2call": {
+    "repo": "nvidia/When2Call",
+    "revision": "0582f7749df63a96fdc3070932e83e72396ace53",
+    "file": "train/when2call_train_sft.jsonl",
+    "licence": "CC-BY-4.0",
+    "use": "train",
+    "eligible": 5740,
+    "kept": 600,
+    "url": "https://huggingface.co/datasets/nvidia/When2Call",
+    "attribution": "When2Call, NVIDIA (Ross et al., 2025), CC-BY-4.0"
+   },
+   "when2call_test": {
+    "repo": "nvidia/When2Call",
+    "revision": "0582f7749df63a96fdc3070932e83e72396ace53",
+    "file": "test/when2call_test_mcq.jsonl",
+    "licence": "CC-BY-4.0",
+    "use": "eval",
+    "eligible": 1385,
+    "kept": 100,
+    "url": "https://huggingface.co/datasets/nvidia/When2Call",
+    "attribution": "When2Call test (mcq), NVIDIA, CC-BY-4.0"
+   },
+   "xlam_irrelevance": {
+    "repo": "MadeAgents/xlam-irrelevance-7.5k",
+    "revision": "34323bf09efc7e4a394998a0fa91ff997617c369",
+    "file": "xlam-7.5k-irrelevancek.json",
+    "licence": "CC-BY-4.0",
+    "use": "train",
+    "eligible": 7293,
+    "kept": 400,
+    "url": "https://huggingface.co/datasets/MadeAgents/xlam-irrelevance-7.5k",
+    "attribution": "xlam-irrelevance-7.5k, MadeAgents / Hammer (Lin et al., 2024), CC-BY-4.0"
+   },
+   "clinc_oos": {
+    "repo": "clinc/clinc_oos",
+    "revision": "155b9c710419136e17307b80d0a13e68cd46b4ec",
+    "file": "plus/train-00000-of-00001.parquet",
+    "licence": "CC-BY-3.0",
+    "use": "train",
+    "eligible": 14613,
+    "kept": 229,
+    "url": "https://huggingface.co/datasets/clinc/clinc_oos",
+    "attribution": "CLINC150 (Larson et al., 2019), CC-BY-3.0"
+   },
+   "clinc_test": {
+    "repo": "clinc/clinc_oos",
+    "revision": "155b9c710419136e17307b80d0a13e68cd46b4ec",
+    "file": "plus/test-00000-of-00001.parquet",
+    "licence": "CC-BY-3.0",
+    "use": "eval",
+    "eligible": 5246,
+    "kept": 150,
+    "url": "https://huggingface.co/datasets/clinc/clinc_oos",
+    "attribution": "CLINC150 test (Larson et al., 2019), CC-BY-3.0"
+   },
+   "glaive_fc_v2": {
+    "repo": "glaiveai/glaive-function-calling-v2",
+    "revision": "e7f4b6456019f5d8bcb991ef0dd67d8ff23221ac",
+    "file": "glaive-function-calling-v2.json",
+    "licence": "Apache-2.0",
+    "use": "train",
+    "eligible": 2111,
+    "kept": 300,
+    "url": "https://huggingface.co/datasets/glaiveai/glaive-function-calling-v2",
+    "attribution": "glaive-function-calling-v2, Glaive AI, Apache-2.0"
+   },
+   "deepset_injections": {
+    "repo": "deepset/prompt-injections",
+    "revision": "4f61ecb038e9c3fb77e21034b22511b523772cdd",
+    "file": "data/train-00000-of-00001-9564e8b05b4757ab.parquet",
+    "licence": "Apache-2.0",
+    "use": "train",
+    "eligible": 97,
+    "kept": 97,
+    "url": "https://huggingface.co/datasets/deepset/prompt-injections",
+    "attribution": "prompt-injections, deepset, Apache-2.0"
+   },
+   "gandalf": {
+    "repo": "Lakera/gandalf_ignore_instructions",
+    "revision": "04737b65e90a6794ec227012e4a255a7def6344b",
+    "file": "data/train-00000-of-00001-ded53be747ff55cd.parquet",
+    "licence": "MIT",
+    "use": "train",
+    "eligible": 709,
+    "kept": 200,
+    "url": "https://huggingface.co/datasets/Lakera/gandalf_ignore_instructions",
+    "attribution": "gandalf_ignore_instructions, Lakera AI, MIT"
+   },
+   "or_bench": {
+    "repo": "bench-llm/or-bench",
+    "revision": "e36d8b80e81837c8a8f264bbb2a49f1b32c7e272",
+    "file": "or-bench-80k.csv",
+    "licence": "CC-BY-4.0",
+    "use": "train",
+    "eligible": 5996,
+    "kept": 150,
+    "url": "https://huggingface.co/datasets/bench-llm/or-bench",
+    "attribution": "OR-Bench 80k (Cui et al., 2024), CC-BY-4.0"
+   },
+   "aegis2": {
+    "repo": "nvidia/Aegis-AI-Content-Safety-Dataset-2.0",
+    "revision": "d86bb8bedff51d25ac834ab7838f1cc61acb7a2c",
+    "file": "train.json",
+    "licence": "CC-BY-4.0",
+    "use": "train",
+    "eligible": 10705,
+    "kept": 150,
+    "url": "https://huggingface.co/datasets/nvidia/Aegis-AI-Content-Safety-Dataset-2.0",
+    "attribution": "Aegis AI Content Safety Dataset 2.0, NVIDIA (Ghosh et al., 2025), CC-BY-4.0 (prompts only)"
+   },
+   "fetaqa": {
+    "repo": "DongfuJiang/FeTaQA",
+    "revision": "75dbfcbb12ae1b608d1c564f177054c3885487c9",
+    "file": "fetaQA-v1_train.jsonl",
+    "licence": "CC-BY-SA-4.0",
+    "use": "train",
+    "eligible": 2999,
+    "kept": 400,
+    "url": "https://huggingface.co/datasets/DongfuJiang/FeTaQA",
+    "attribution": "FeTaQA (Nan et al., 2022), CC-BY-SA-4.0, tables from Wikipedia (CC-BY-SA)"
+   },
+   "smol_smoltalk": {
+    "repo": "HuggingFaceTB/smol-smoltalk",
+    "revision": "f73fe857d519ff6ac5af2ea67c4d3834da7b8bcc",
+    "file": "data/train-00000-of-00004.parquet",
+    "licence": "Apache-2.0",
+    "use": "train",
+    "eligible": 1702,
+    "kept": 600,
+    "url": "https://huggingface.co/datasets/HuggingFaceTB/smol-smoltalk",
+    "attribution": "smol-smoltalk, Hugging Face (Allal et al., 2025), Apache-2.0"
+   },
+   "xstest": {
+    "repo": "Paul/XSTest",
+    "revision": "f600c994b256f12867dfa5b3eb3d545a3e62f8b5",
+    "file": "xstest_prompts.csv",
+    "licence": "CC-BY-4.0",
+    "use": "eval",
+    "eligible": 450,
+    "kept": 100,
+    "url": "https://huggingface.co/datasets/Paul/XSTest",
+    "attribution": "XSTest (R\u00f6ttger et al., 2024), CC-BY-4.0"
+   }
+  },
+  "licence_of_public_train": "CC-BY-SA-4.0 (combined file inherits ShareAlike from FeTaQA); each row keeps its own licence + attribution",
+  "sizes_bytes": {
+   "public_train.jsonl": 4810774,
+   "public_eval.jsonl": 557754
+  }
+ },
+ "tokens": {
+  "tokenizer": "Qwen/Qwen2.5-1.5B-Instruct",
+  "max_len": 768,
+  "train": {
+   "rows": 5960,
+   "max": 669,
+   "p99": 593,
+   "mean": 323.0,
+   "total_tokens": 1924936,
+   "over_max_len": 0,
+   "longest": {
+    "tokens": 669,
+    "id": "train-01268",
+    "task": "answer",
+    "source": "scenario:workbook"
+   }
+  },
+  "val": {
+   "rows": 534,
+   "max": 661,
+   "p99": 507,
+   "mean": 321.3,
+   "total_tokens": 171558,
+   "over_max_len": 0,
+   "longest": {
+    "tokens": 661,
+    "id": "val-00498",
+    "task": "answer",
+    "source": "scenario:noids"
+   }
+  },
+  "test": {
+   "rows": 898,
+   "max": 679,
+   "p99": 585,
+   "mean": 320.7,
+   "total_tokens": 288000,
+   "over_max_len": 0,
+   "longest": {
+    "tokens": 679,
+    "id": "test-00807",
+    "task": "answer",
+    "source": "scenario:incident"
+   }
+  },
+  "public_train": {
+   "rows": 2706,
+   "max": 737,
+   "p99": 490,
+   "mean": 305.3,
+   "total_tokens": 826053,
+   "over_max_len": 0,
+   "longest": {
+    "tokens": 737,
+    "id": "pub-01111",
+    "task": "answer",
+    "source": "public:fetaqa"
+   }
+  },
+  "public_eval": {
+   "rows": 350,
+   "max": 406,
+   "p99": 363,
+   "mean": 312.2,
+   "total_tokens": 109274,
+   "over_max_len": 0,
+   "longest": {
+    "tokens": 406,
+    "id": "pubeval-00117",
+    "task": "route",
+    "source": "public:when2call_test"
+   }
+  }
+ }
 }

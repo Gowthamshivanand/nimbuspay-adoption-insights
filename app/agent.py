@@ -60,7 +60,7 @@ CLAIM_NUM = r"(\d+(?:\.\d+)?)\s*(%|percent\b|x\b|crores?\b|lakhs?\b|cr\b|hours?\
 UNGOVERNED = r"(sentiment|happiness|productivity|\broi\b|morale|\bnps\b|engagement score|lines of code)"
 
 # reason -> (why, safe alternative, metrics). Shared by the code guards and the fine-tuned router's "refuse" route
-# (the model only picks a reason; the text is always this canned, reviewed text). "gaming" is reachable only via the model.
+# (the model only picks a reason; the text is always this canned, reviewed text). "gaming" and "harmful" are reachable only via the model.
 REFUSALS = {
     "injection": ("I can't switch off my rules: instructions inside a question are treated as text, not commands. My guards are code that runs before any model, and your access comes from your role, not from what the question says.",
                   "Ask a governed question instead, for example 'What is licence utilisation this month?' or 'How reliable are our agents?'", []),
@@ -76,6 +76,8 @@ REFUSALS = {
                "I can show the M09 study design and the before/after figures with their caveat, or the adoption trend for that workflow.", ["M09"]),
     "ungoverned": ("That isn't a governed metric, so I won't compute it on the fly.",
                    "Governed alternatives: M01 utilisation, M02 habitual users, M04 interactions per active user, M17 verified hours, M19 value score. Propose new metrics to the metric owner (cap of 25).", []),
+    "harmful": ("I can't help with that. I only answer governed questions about NimbusPay AI adoption, and harmful or unsafe requests are out of bounds.",
+                "Ask about adoption, value or reliability instead, for example 'What is licence utilisation this month?'", []),
     "gaming": ("I can't help inflate or game a metric. Governed metrics count qualifying use only, so extra logins or empty runs do not move them.",
                "I can show which pillars of the value score (M19) are low and what genuine use would move them, or the licence funnel (LF1-LF6).", ["M19"]),
 }
@@ -547,6 +549,17 @@ class Agent:
         r["suggestions"] = sug
         return r
 
+    def clarify(self, q, slot):
+        """Clarifying question from the fine-tuned router's none + clarify. Same shape as conversation._clarify, no data.
+        agent: one unnamed agent is meant -> pick an agent; topic: several asks with no main one -> 3 governed questions."""
+        if slot == "agent":
+            from . import conversation as CV          # lazy: conversation imports this module
+            make_q = (lambda a: re.sub(CV.VAGUE_AGENT, a, q, count=1, flags=re.I)) if re.search(CV.VAGUE_AGENT, q, re.I) else (lambda a: f"How is {a} doing?")
+            return CV._clarify(self, "Which agent do you mean? I won't guess, because the answer differs by agent.", CV._agent_options(self, make_q), 0.4, "clarify_agent")
+        r = self.unmatched(q)                            # 3 closest governed questions, as a choice
+        r["clarify"] = "topic"
+        return r
+
     def regions(self):
         return sorted({r[0] for r in _sql(self.db, "SELECT DISTINCT region FROM user_funnel")})
 
@@ -564,6 +577,9 @@ class Agent:
             d = FT.route(q, persona, prev, self.agents, self.regions())   # schema-checked; None on any failure
             if d and d["tool"] == "refuse":              # the model may refuse MORE than the guards, never less
                 r = self.refusal(d["args"]["reason"], persona); r["mode"] = b["label"] + " (refuse)"; r["persona"] = persona
+                return r
+            if d and d["tool"] == "none" and d["args"].get("clarify"):   # ask instead of guessing (no rules fallback)
+                r = self.clarify(q, d["args"]["clarify"]); r["mode"] = b["label"] + " (clarify)"; r["persona"] = persona
                 return r
             if d and d["tool"] != "none":
                 fn, args, mode = d["tool"], d["args"], b["label"]
