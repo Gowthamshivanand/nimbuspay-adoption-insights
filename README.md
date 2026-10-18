@@ -1,3 +1,14 @@
+---
+title: NimbusPay Adoption Insights
+emoji: 📊
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: Hobby demo on synthetic data, governed AI agent
+---
 # NimbusPay AI adoption insights: live product + interactive prototype
 
 > **Hobby case study, synthetic data only.** This is a personal hobby project built for a campus case-study competition (HashedIn by Deloitte Campus PM Hiring 2026, "The Adoption Mirage"). "NimbusPay" is the fictional company from that case brief. Every number, team, user and event here is synthetic and labelled. It is **not affiliated with, endorsed by, or about any real company**, including nimbuspay.io, HashedIn or Deloitte, and contains no real company or personal data.
@@ -31,6 +42,8 @@ OLLAMA_MODEL=qwen2.5:7b-instruct NP_BRAIN=ollama python tools/eval_agent.py --br
 OLLAMA_MODEL=qwen2.5:7b-instruct python -m app
 ```
 
+**Safety, model and deploy docs:** [docs/BREAK_IT.md](docs/BREAK_IT.md) (22 adversarial questions, real responses, `python tools/break_it.py`), [docs/MODEL_CARD.md](docs/MODEL_CARD.md) (fine-tuned router: intended use, data, release gate, measured 3B baseline) and [docs/DEPLOY_HF_SPACES.md](docs/DEPLOY_HF_SPACES.md) (free Hugging Face Docker Space on port 7860, rules brain, no secrets).
+
 **Operations:** see [docs/RUNBOOK.md](docs/RUNBOOK.md) for SLOs, alerts, on-call playbooks, rollback and the DEV -> staging -> prod release flow. The live app has a **Cost and scale** tab (`/api/cost`, `app/costcalc.py`): every default is a labelled assumption and every price is a cited public list price.
 
 The repo now holds two things:
@@ -40,7 +53,7 @@ The repo now holds two things:
 ### Run it (one command)
 ```bash
 pip install -r requirements.txt && python -m app      # then open http://127.0.0.1:8000
-# or: make install run      # or: docker build -t nimbuspay-insights . && docker run -p 8000:8000 nimbuspay-insights
+# or: make install run      # or: docker build -t nimbuspay-insights . && docker run -p 7860:7860 nimbuspay-insights  (then open http://127.0.0.1:7860)
 ```
 Python 3.10+. Dependencies: FastAPI, Uvicorn, python-multipart. The warehouse is SQLite from the standard library.
 

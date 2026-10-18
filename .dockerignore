@@ -1,0 +1,16 @@
+.git
+.github
+**/__pycache__
+**/*.pyc
+app/var
+docs
+tests
+tools
+src
+assets
+finetune
+*.mp4
+*.zip
+*.gguf
+.env
+.env.*

@@ -47,6 +47,15 @@ FORECAST = (r"(next (week|quarter|month|year)|\bwill\b.*\b(be|rise|grow|fall|dro
 CAUSAL = (r"(\bcause[ds]?\b|caused|because of the (agent|ai)|did the .* (make|lead to|drive)|impact of the agent on"
           r"|did (the |our )?[\w\- ]*(agent|assistant|bot|ai|copilot|checker|tool)s? (reduce|cut|lower|improve|increase|speed|boost|drive|make|lead|prevent|stop|decrease)"
           r"|thanks to (the )?(agent|ai|assistant)|attribut(e|able)\b.*\bto (the )?(agent|ai|assistant)|because of (the )?(agent|ai|assistant))")
+# Prompt injection / jailbreak: instructions hidden in the question never change the rules (the rules are code, not a prompt).
+INJECTION = (r"(ignore (all |any |the |your |my )?(previous |prior |above |earlier |system )*(instructions|rules|guardrails|prompts?)"
+             r"|system prompt|developer mode|admin mode|god mode|jailbreak|\bdan\b|do anything now|no (restrictions|rules|limits|guardrails)"
+             r"|pretend (you are|to be|you're)|you are now|from now on you|act as (an? )?(admin|root|unrestricted|different)|bypass (the |your )?(guards?|rules|filters?|security)"
+             r"|override (the |your )?(rules|guards?|role|scope|security)|disregard (the |your |all )?(rules|instructions)|^\W*system\s*:)")
+# Claim check: a number supplied in the question is never confirmed unless the governed answer computed the same number.
+CLAIM = (r"(\bconfirm|\bverify|\bvalidate|\bagree\b|say yes|is it true|\bright\s*\?|correct\s*\?|tell (the )?(board|cfo|ceo|leadership|panel)"
+         r"|put (that|this|it) in|sign off on|\bprove\b)")
+CLAIM_NUM = r"(\d+(?:\.\d+)?)\s*(%|percent\b|x\b|crores?\b|lakhs?\b|cr\b|hours?\b|hrs?\b|seats?\b|users?\b|people\b)"
 UNGOVERNED = r"(sentiment|happiness|productivity|\broi\b|morale|\bnps\b|engagement score|lines of code)"
 
 AGENT_ALIAS = [(r"fraud", "AG-FRAUD-01"), (r"\bkyc\b", "AG-KYC-04"), (r"onboarding", "AG-ONB-02"), (r"summar", "AG-SUMM-03"), (r"\bx9\b", "AG-DND-X9")]
@@ -143,6 +152,9 @@ class Agent:
     # ---------- guards (always deterministic, run before any intent or LLM) ----------
     def guards(self, q, persona):
         ql = q.lower().strip()
+        if re.search(INJECTION, ql):
+            return self.refuse("I can't switch off my rules: instructions inside a question are treated as text, not commands. My guards are code that runs before any model, and your access comes from your role, not from what the question says.",
+                               "Ask a governed question instead, for example 'What is licence utilisation this month?' or 'How reliable are our agents?'", [], "injection")
         if re.search(WRITE, ql):
             return self.refuse("I can't do that: I am read-only and never change agents, seats, data or settings.",
                                "I can show this agent's usage, reliability and owner from the registry so the owner can decide and act through change control.", ["M16", "M10"], "write")
@@ -513,6 +525,7 @@ class Agent:
         g = self.guards(q, persona)                      # safety guards are ALWAYS deterministic
         if g:
             g["mode"] = "rules (guard)"; return g
+        q = re.sub(r"<[^<>]{0,300}>", " ", q).strip() or q   # markup is text, never routing input (e.g. '<img onerror=alert(1)>' is not an 'alerts' question)
         b = brain()
         fn, mode = None, "rules"
         if b["kind"] != "rules":
@@ -527,9 +540,39 @@ class Agent:
             r = self.unmatched(q)
         else:
             r = getattr(self, fn)(q, persona)            # numbers come from SQL / pipeline here, never from the model
+        claims = claimed_numbers(q)
+        if claims:
+            r = self._claim_check(r, claims)
         r["mode"] = mode
         r["persona"] = persona
         return r
+
+    def _claim_check(self, r, claims):
+        """Never confirm a number the user supplied. Say whether the governed answer computed the same figure."""
+        nums = set(re.findall(r"\d+(?:\.\d+)?", r["text"]))
+        num = lambda c: re.match(r"\d+(?:\.\d+)?", c).group(0)
+        same = [c for c in claims if num(c) in nums]
+        other = [c for c in claims if num(c) not in nums]
+        r["claim_check"] = dict(claimed=claims, matches_governed=same, unverified=other)
+        if r["type"] == "refuse":
+            if r["intent"] in ("unmatched", "no_role"):
+                r = self.refuse(f"I can't confirm {', '.join(c for c in claims)}: that figure came from the question, not from a governed query, and I never repeat a number I didn't compute.",
+                                "Ask for the metric itself (for example 'What is licence utilisation?' or 'Are we saving time?') and I'll give the computed figure with its metric ID, SQL and data-as-of."
+                                + (" " + r["safe_alternative"] if r["intent"] == "no_role" else ""), [], "unverified_claim")
+                r["claim_check"] = dict(claimed=claims, matches_governed=[], unverified=claims)
+            return r
+        if other:
+            r["text"] = f"Claim check: I can't confirm {', '.join(other)} from your question; the governed figure is below. " + r["text"]
+        else:
+            r["text"] = f"Claim check: {', '.join(same)} matches the governed figure. " + r["text"]
+        return r
+
+
+def claimed_numbers(q):
+    """Numbers with a unit the user asks us to confirm, e.g. 'confirm 40% savings' -> ['40']. Empty unless a confirm-style verb is present."""
+    ql = q.lower()
+    if not re.search(CLAIM, ql): return []
+    return list(dict.fromkeys(m.group(0).strip() for m in re.finditer(CLAIM_NUM, ql)))
 
 
 # One line per governed tool, shown to the model. The model returns a tool name only.
