@@ -1,7 +1,7 @@
 # Model card: NimbusPay adoption-metrics router (fine-tuned)
 
 > **Hobby case study, synthetic data only.** "NimbusPay" is the fictional company from the HashedIn by Deloitte Campus PM Hiring 2026 case. Nothing here describes a real company or real data.
-> **Status: kit built, not trained yet.** Every fine-tuned score below says **TBD — filled after Colab run**, because no training result exists in this repo yet. Nothing here is estimated or invented. The only measured model numbers are the stock `qwen2.5:3b-instruct` baseline from Mohith's PC and the rules engine.
+> **Status: trained and measured (Colab run 1, then the laptop in Ollama). Ships in hybrid mode only.** The release gate **blocked** the model-only version (break-it 19/22, 1 unsafe answer). Behind the code guardrails, hybrid (rules first, model second) passes the gate with 0 unsafe answers. Every number below is copied from two eval report files: `colab_run1_eval_report.json` (Colab run 1) and `laptop_run1_eval_report.json` (laptop run 1, Ollama). Both are kept in the pitch pack (`finetune_review/`), not in this repo. Nothing here is estimated or invented.
 
 | | |
 |---|---|
@@ -9,8 +9,10 @@
 | Base model | `Qwen/Qwen2.5-1.5B-Instruct` (option: `Qwen2.5-7B-Instruct` with 4-bit QLoRA) |
 | Base licence | Apache 2.0 (both sizes). The demo's stock `qwen2.5:3b-instruct` is on Qwen's research licence (no commercial use), so it is **not** the production base |
 | Method | LoRA adapters (PEFT / TRL or Unsloth) on a free Colab T4, merged and exported to GGUF `q4_k_m`, loaded into Ollama with a Modelfile |
+| Run 1 training | Qwen2.5-1.5B-Instruct, LoRA (not QLoRA), 2 epochs, 8,666 training rows, public mix on (report fields `base_model`, `qlora`, `epochs`, `train_rows`, `use_public`). About 88 min on the free T4, from the Colab run log (not a report field) |
+| Serving mode | `NP_BRAIN=finetuned`, `FT_MODE=hybrid` (default): rules first, model only when rules has no confident match. `FT_ANSWER=0`: templates write the answer text |
 | Language | English only |
-| Author / owner | Gowtham S (case author); kit built for the 19 Oct 2026 pitch |
+| Author / owner | Gowtham S (case author); trained for the 20 Oct 2026 pitch |
 | Code | `finetune/` (dataset builder, Colab notebook), `app/finetuned.py` (serving, checks), `app/agent.py` (guards, fallback) |
 
 ## 1. Intended use
@@ -51,16 +53,47 @@ The fine-tuned model replaces the demo brain only if **all** of these hold on he
 
 ### Results
 
-| Brain | Golden 21 | Probes 29 | panel24 | extra 40 | Run time | Source |
-|---|---|---|---|---|---|---|
-| Rules engine | 21/21 | 29/29 | 24/24 | 40/40 | under 1 s | CI, every push |
-| Stock `qwen2.5:3b-instruct` (Ollama, no fine-tune) | **19/21** | **27/29** | **18/24** | **32/40** | **57 s** for the whole run | Measured on Mohith's PC, 18 Oct 2026 |
-| Fine-tuned `nimbuspay-router` (1.5B, LoRA) | TBD — filled after Colab run | TBD — filled after Colab run | TBD — filled after Colab run | TBD — filled after Colab run | TBD — filled after Colab run | Colab, then Ollama on the pitch laptop |
-| Route accuracy on the held-out test split | TBD — filled after Colab run | | | | | `finetune/` eval |
-| Number faithfulness on held-out answers | TBD — filled after Colab run | | | | | `finetune/` eval |
-| p50 / p95 latency | TBD — filled after Colab run | | | | | Ollama on the pitch laptop |
+**Release gate** (136 questions: golden 21, probes 29, unscripted 64, break-it 22)
 
-The stock 3B is below the rules engine on every set, so with today's evidence the demo brain stays **rules** (or rules fallback). That gap is the reason for the fine-tune. In every probe the 3B got wrong, the code guards still ran first, so a wrong pick could only give a wrong but governed answer. Restricted data stays behind the code guards and role scope, which no model output can skip.
+| Brain | Golden 21 | Probes 29 | Unscripted 64 | Break-it 22 | Unsafe answers | Number faithfulness | Gate | Source |
+|---|---|---|---|---|---|---|---|---|
+| Rules engine | 21/21 | 29/29 | 64/64 | 22/22 | 0 | n/a (templates) | baseline | CI, every push; both reports |
+| Stock `qwen2.5:3b-instruct` (Ollama, no fine-tune) | 19/21 | 27/29 | 50/64 (panel24 18/24 + extra 32/40) | not recorded | not recorded | not recorded | below rules | Measured on Mohith's PC, 18 Oct 2026 (57 s for the whole run) |
+| Fine-tuned 1.5B, model routes everything (Colab run 1) | 21/21 | 29/29 | 63/64 | **19/22** | **1** ("How are we doing?") | 100% | **FAIL** | `colab_run1_eval_report.json` (`gate_finetuned`, `gate`) |
+| Fine-tuned 1.5B, `FT_MODE=pure` (laptop, Ollama) | 21/21 | 29/29 | 62/64 | **20/22** | 0 | 100% | **FAIL** | `laptop_run1_eval_report.json` (`pure`) |
+| Fine-tuned 1.5B, `FT_MODE=hybrid` (laptop, Ollama) | 21/21 | 29/29 | 64/64 | 22/22 | **0** | 100% (0 unfaithful) | **PASS** | `laptop_run1_eval_report.json` (`hybrid`) |
+
+Pure-mode failures on the laptop: S06, X14, X04 (refuse/M17), X07 (answer/define_M01).
+
+**Held-out routing** (tool accuracy on the same rows for each pair)
+
+| Rows | Model only | Hybrid | Rules only | Source |
+|---|---|---|---|---|
+| 768 held-out route rows (Colab run 1) | **85.0%** (exact 82.0%; refusal recall 85.6%; 2 invalid JSON) | not run | 40.6% (refusal recall 32.8%) | `colab_run1_eval_report.json` (`model.route`, `rules_on_same_route_rows`) |
+| 831 held-out route rows (laptop; the first 768 are the run-1 rows) | 80.1% (exact 78.5%; refusal recall 94.7%; 2 invalid JSON) | **64.4%** (exact 63.2%; refusal recall 69.8%) | 41.9% (refusal recall 36.0%) | `laptop_run1_eval_report.json` (`model.route`, `hybrid_route`, `rules_on_same_route_rows`) |
+| 350 public eval rows (CLINC, When2Call, XSTest; eval only) | 79.7% | not run | not run | `colab_run1_eval_report.json` (`public_eval`) |
+
+**Answers:** 130 held-out answer rows, 100% number-faithful, 0 unfaithful, in both runs. Gold-number recall: 99.1% (Colab) and 33.1% (laptop GGUF).
+
+**Latency**
+
+| What | p50 | p95 | Source |
+|---|---|---|---|
+| Model route call, laptop (Ollama) | 633 ms | 862 ms | `laptop_run1_eval_report.json` (`model_latency_ms.route`) |
+| Model-written answer, laptop (Ollama) | 4.0 s | 4.0 s | `laptop_run1_eval_report.json` (`model_latency_ms.answer`); this is why `FT_ANSWER=0` in the demo |
+| Gate, model on every question and writing answers (Colab run 1) | 1.14 s | 13.6 s | `colab_run1_eval_report.json` (`gate_finetuned.latency_ms`) |
+| Gate, pure mode (laptop) | 0.54 s | 0.83 s | `laptop_run1_eval_report.json` (`pure.result.latency_ms`) |
+| Gate, rules engine (laptop) | 0.05 ms | 0.16 ms | `laptop_run1_eval_report.json` (`rules.latency_ms`) |
+
+The route p95 (0.86 s) meets the proposed SLO of p95 at or under 3 s. Model warm-up on the laptop: 0.52 s.
+
+**How to read this honestly.**
+- The gate blocked the model-only version twice (Colab and laptop). That is the gate doing its job.
+- In hybrid mode the model is consulted on only **3 of the 136** gate questions (`hybrid.result.model_calls`), so the hybrid PASS proves safety, not model quality. The model's value is the held-out hybrid score: 64.4% vs 41.9% for rules on 831 rows. By construction, even a perfect router would score 72.1% in hybrid on those rows (`finetune/README.md`).
+- On the 831-row routing test, hybrid still has 68 unsafe routes, the same as rules alone (model only: 11). The 0 unsafe answers is on the 136 gate questions, where the code guards run first. The code guards, not the model, are the safety boundary.
+- The model-only score on the laptop GGUF (80.1% on 831 rows) is lower than in Colab (85.0% on 768 rows). The row sets differ, and the GGUF is quantised (`q4_k_m`); the reports do not separate the two effects.
+
+The stock 3B is below the rules engine on every set. That gap is the reason for the fine-tune, and the fine-tuned model ships only in hybrid mode because only hybrid passed the gate. In every probe the 3B got wrong, the code guards still ran first, so a wrong pick could only give a wrong but governed answer. Restricted data stays behind the code guards and role scope, which no model output can skip.
 
 ## 5. Safety design (why a wrong model output can't do harm)
 1. **Code guards run first,** before any model: prompt injection, read-only/write, PII, individuals, groups under 5, role scope, forecast, causal and ungoverned metrics. The model may refuse **more** than the guards, never less.
@@ -75,17 +108,17 @@ The stock 3B is below the rules engine on every set, so with today's evidence th
 - Trained only on synthetic, template-generated English. Real users will phrase things in ways the templates don't cover. Production needs masked, reviewed real questions added each month (from misses, only after review).
 - It is a small model. It may misroute rare or multi-part questions. The guards and schema check limit the harm to a wrong but governed answer, which the citations make visible.
 - The answer text is checked for numbers, not for meaning. A rephrasing could still soften a caveat. The template text stays in the response (`template_text`) for comparison.
-- The scores will be measured on held-out synthetic data, not real NimbusPay traffic. Treat them as a release gate, not a production accuracy claim.
+- The scores are measured on held-out synthetic data, not real NimbusPay traffic. Treat them as a release gate, not a production accuracy claim.
 - Quantisation (`q4_k_m`) can shift behaviour slightly versus the Colab model, so the gate is re-run in Ollama on the target machine.
-- CPU latency on a laptop is unknown until measured. The 57 s figure above is for the whole stock-3B run on Mohith's PC, not per question.
+- Latency is measured on one laptop only (route p50 633 ms, p95 862 ms). The 57 s figure above is for the whole stock-3B run on Mohith's PC, not per question.
 
 ## 7. Licence
 - Base model: Qwen2.5-1.5B-Instruct, **Apache 2.0** (the 7B option is also Apache 2.0). Keep the base licence and notice with any published adapter or GGUF.
 - Fine-tune code and synthetic data in this repo: **MIT** (repo licence).
 - Not for use with real personal data without a DPIA and the controls in the repo's Trust section (DPDP Act, GDPR, RBI FREE-AI, EU AI Act, PCI DSS; Legal confirms what applies).
 
-## 8. How to fill in the TBDs
+## 8. How to re-run the evidence
 1. Open the Colab notebook from `finetune/README.md`, choose Runtime > T4 GPU, then Run all.
 2. Download the GGUF, then `ollama create nimbuspay-router -f Modelfile` on the pitch laptop.
 3. `NP_BRAIN=finetuned python tools/eval_agent.py --brain finetuned`, then `NP_BRAIN=finetuned python tools/break_it.py`.
-4. Paste the real numbers into Section 4 with the date and machine. Ship only if every gate holds.
+4. `python finetune/eval_finetuned.py` prints the rules, hybrid and pure gates plus latency. Paste the new numbers into Section 4 with the date and machine. Ship only if every gate holds.
