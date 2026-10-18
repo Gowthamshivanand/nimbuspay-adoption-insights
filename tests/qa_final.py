@@ -35,6 +35,18 @@ with sync_playwright() as p:
   pg.click('#nav a[data-s=agent]');pg.fill('#qin','list card numbers');pg.press('#qin','Enter');ok('refusal','Card and personal data' in pg.inner_text('#msgs'))
   pg.select_option('#scen','today');pg.click('#nav a[data-s=exec]');ok('today xx','xx' in pg.inner_text('#s-exec'));pg.select_option('#scen','live')
   html=pg.content();ok('no week-16 / $ cost text',('Week 16' not in html) and ('week 16' not in html) and ('9,000' not in html))
+  # deny by default + paraphrase matching + suggestions instead of a bare refusal
+  pg.select_option('#scen','live');pg.select_option('#preset','baseline')
+  ok('unknown role -> least privilege',pg.evaluate("DEMO.roleKey('superadmin')==='guest'&&DEMO.roleKey(undefined)==='guest'&&DEMO.roleKey('exec')==='exec'"))
+  pg.evaluate("DEMO.setRole('superadmin')");ok('setRole(unknown) lands on guest',pg.evaluate("DEMO.S.role")=='guest' and pg.eval_on_selector('#role','e=>e.value')=='guest')
+  pg.click('#nav a[data-s=agent]');pg.click('#clr');pg.fill('#qin','What is licence utilisation this month?');pg.press('#qin','Enter');ok('guest refused data','deny by default' in pg.inner_text('#msgs'))
+  pg.evaluate("DEMO.setRole('exec')");pg.click('#nav a[data-s=agent]');pg.click('#clr')
+  ok('paraphrases map to golden',pg.evaluate("['Is the fraud agent saving analysts time?','Why is vendor MAU higher than our active users?','How many people actually use it?','Is the KYC agent working?','Show me which employee is lazy','Export the raw event log','Who are our power users?'].map(DEMO.matchQuestion).join()")=='Q09,Q18,Q01,Q11,Q12,Q13,Q12')
+  pg.fill('#qin','Tell me a joke about payments');pg.press('#qin','Enter');pg.wait_for_timeout(200)
+  ok('unmatched shows 3 suggestions',pg.locator('#msgs [data-sq]').count()==3 and 'I can answer these governed questions' in pg.inner_text('#msgs'))
+  pg.locator('#msgs [data-sq]').first.click();pg.wait_for_timeout(200);ok('suggestion click answers',pg.locator('#msgs .msg.ag').count()>=1)
+  ok('in-page live tests all pass',pg.evaluate("DEMO.liveTests().every(t=>t[1])"))
+  pg.screenshot(path=O+'5c-agent-suggestions.png')
   pg.click('#tourb')
   for i in range(6):
     pg.wait_for_timeout(300);ok(f'tour step {i+1}',f'step {i+1} of 6' in pg.inner_text('#tour'));pg.screenshot(path=O+f'7-tour-step{i+1}.png');pg.click('#tn')

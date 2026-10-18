@@ -208,8 +208,12 @@ const ROLES = {
   ra:{label:"Regional lead, Region A",regions:["Region A"],views:["exec","regional"]},
   rb:{label:"Regional lead, Region B",regions:["Region B"],views:["exec","regional"]},
   eng:{label:"Platform engineer",regions:[],views:["eng"]},
-  fraud:{label:"Fraud operations lead",regions:["Region A","Region B","Region C"],fn:"Fraud operations",views:["regional"]}
+  fraud:{label:"Fraud operations lead",regions:["Region A","Region B","Region C"],fn:"Fraud operations",views:["regional"]},
+  guest:{label:"Unrecognised role (least privilege)",regions:[],views:[]}
 };
+/* Deny by default: a missing or unknown role resolves to the least-privileged persona, never to Executive. */
+const roleKey = r => (typeof r === "string" && Object.prototype.hasOwnProperty.call(ROLES, r)) ? r : "guest";
+const ROLE = (r = S.role) => ROLES[roleKey(r)];
 const S = {
   role:"exec", scenario:"live", screen:"exec",
   weights:PILLARS.map(p => p.w), missing:PILLARS.map(() => false), breach:false,
@@ -269,14 +273,14 @@ function applyPreset(k) {
   }
 }
 function scopeTeams(role = S.role) {
-  const r = ROLES[role];
+  const r = ROLE(role);
   return TEAMS.filter(t => r.regions.includes(t.region) && (!r.fn || t.fn === r.fn));
 }
 function sum(ts, k) { return ts.reduce((a, t) => a + t[k], 0); }
 function totals(ts) { const o = {}; STAGES.forEach(([k]) => o[k] = sum(ts, k)); return o; }
 function audit(action, detail, result) {
   const d = new Date();
-  S.audit.unshift({t:d.toTimeString().slice(0,8), role:ROLES[S.role].label, action, detail, result});
+  S.audit.unshift({t:d.toTimeString().slice(0,8), role:ROLE().label, action, detail, result});
   if (S.screen === "gov") renderGov();
 }
 
@@ -321,14 +325,14 @@ function nav() {
 function go(s) { S.screen = s; nav(); $$(".screen").forEach(e => e.classList.toggle("on", e.id === "s-" + s)); render(); $("main").scrollTop = 0; }
 function render() { ({exec:renderExec, regional:renderRegional, eng:renderEng, count:renderCount, agent:renderAgent, gov:renderGov})[S.screen](); }
 function locked(view) {
-  return `<div class="locked"><h2>Not in your role scope</h2><p>${esc(ROLES[S.role].label)} cannot open the ${esc(view)} view. Access is role-based, from SSO.</p><p class="small">Switch "Viewing as" in the top bar to see how access changes.</p></div>`;
+  return `<div class="locked"><h2>Not in your role scope</h2><p>${esc(ROLE().label)} cannot open the ${esc(view)} view. Access is role-based, from SSO.</p><p class="small">Switch "Viewing as" in the top bar to see how access changes.</p></div>`;
 }
 function evTag(s) { return {met:'<span class="tag grn">Met</span>',below:'<span class="tag amb">Below threshold</span>',above:'<span class="tag amb">Above threshold</span>',missing:'<span class="tag">Missing</span>',gap:'<span class="tag red">Gap</span>'}[s]; }
 function renderExec() {
   const el = $("#s-exec");
-  if (!ROLES[S.role].views.includes("exec")) { el.innerHTML = `<h1>Executive view</h1><p class="sub">Monthly; supports the renewal decision.</p>` + locked("Executive"); return; }
+  if (!ROLE().views.includes("exec")) { el.innerHTML = `<h1>Executive view</h1><p class="sub">Monthly; supports the renewal decision.</p>` + locked("Executive"); return; }
   const ts = scopeTeams(), t = totals(ts), sc = score(), vh = verifiedHours(), cph = costPerHour(), rn = renewal();
-  const scopeNote = S.role === "exec" ? "All regions, aggregate only" : "Scope: " + ROLES[S.role].regions.join(", ") + " (renewal evidence stays company-wide)";
+  const scopeNote = S.role === "exec" ? "All regions, aggregate only" : "Scope: " + ROLE().regions.join(", ") + " (renewal evidence stays company-wide)";
   const sv = sc.state === "withheld" ? `<div class="scoreval wh" id="scorebox"><div class="small muted">AI value score (M19), 0-100</div><div class="big">No score</div><div class="note">${esc(sc.reason)}</div></div>`
     : `<div class="scoreval ${sc.state === "red" ? "red" : ""}" id="scorebox"><div class="small muted">AI value score (M19), 0-100</div><div class="big">${sc.value}</div><div class="note">${sc.state === "red" ? "<b style='color:var(--red)'>Flagged red: critical-risk breach.</b> The value is shown but must not be read as healthy." : "Weighted sum of five pillars. Always shown beside them."}</div></div>`;
   const pil = PILLARS.map((p, i) => `<div class="pil ${S.missing[i] || !W16() ? "miss" : ""}"><div class="pn">${p.k}</div>
@@ -373,8 +377,8 @@ function heat(f) {
 }
 function renderRegional() {
   const el = $("#s-regional");
-  if (!ROLES[S.role].views.includes("regional")) { el.innerHTML = `<h1>Regional adoption and intervention</h1><p class="sub">Weekly; for regional and business leads.</p>` + locked("Regional adoption"); return; }
-  const r = ROLES[S.role];
+  if (!ROLE().views.includes("regional")) { el.innerHTML = `<h1>Regional adoption and intervention</h1><p class="sub">Weekly; for regional and business leads.</p>` + locked("Regional adoption"); return; }
+  const r = ROLE();
   const allRegions = ["Region A","Region B","Region C"], cohorts = ["Established","Launch cohort 1","Launch cohort 2","Launch cohort 3"];
   const ts = scopeTeams().filter(t => (S.region === "All" || t.region === S.region) && (S.cohort === "All" || t.cohort === S.cohort));
   const shown = ts.filter(t => t.assigned >= MIN_GROUP), small = ts.filter(t => t.assigned < MIN_GROUP);
@@ -424,7 +428,7 @@ function renderRegional() {
 
 function renderEng() {
   const el = $("#s-eng");
-  if (!ROLES[S.role].views.includes("eng")) { el.innerHTML = `<h1>Engineering reliability and instrumentation</h1><p class="sub">Daily, with alerts; for platform engineering.</p>` + locked("Engineering reliability"); return; }
+  if (!ROLE().views.includes("eng")) { el.innerHTML = `<h1>Engineering reliability and instrumentation</h1><p class="sub">Daily, with alerts; for platform engineering.</p>` + locked("Engineering reliability"); return; }
   const ag = AGENTS.filter(a => S.buildF === "All" || a.build === S.buildF);
   const runs = sum(ag, "runs"), fails = sum(ag, "fail");
   const cc = CONNECTORS.map(c => ({...c, rate: 100 * c.fail / c.calls})).sort((a, b) => b.rate - a.rate);
@@ -530,7 +534,10 @@ function sqlFor(ids, scope, extra) {
 }
 function ans(kind, text, ids, o = {}) { return {kind, text, cites:(ids || []).map(i => cite(i)).concat(o.label ? [cite(null, o.label)] : []), sql:o.sql, steps:o.steps, reason:o.reason, alt:o.alt}; }
 function answerFor(qid) {
-  const role = ROLES[S.role], q = D.Agent_Test_Questions.find(x => x["Question ID"] === qid);
+  if (roleKey(S.role) === "guest" && !["Q02", "Q13", "Q14"].includes(qid))
+    return ans("refuse", "I can't show data: your role isn't recognised, so you get least-privilege access (deny by default). In production the role comes from your SSO token, never from the request.", [],
+      {reason:"Unknown or missing role: deny by default", alt:"Sign in with a recognised role. Without one I can still explain definitions, for example \"How is licence utilisation defined?\" (Q02)."});
+  const role = ROLE(), q = D.Agent_Test_Questions.find(x => x["Question ID"] === qid);
   const t = totals(scopeTeams()), scope = role.regions, scopeTxt = S.role === "exec" ? "all regions" : role.regions.join(", ") || "no regions";
   const metricIds = q["Governed metric reference"].match(/M\d\d/g) || [];
   const outOfRole = metricIds.slice(0, 1).find(id => !role.views.includes(VIEW_OF(id)) && !(role.views.includes("regional") && ["M01","M02","M03","M04"].includes(id)));
@@ -598,21 +605,53 @@ function answerFor(qid) {
 }
 function matchQuestion(text) {
   const s = text.toLowerCase();
-  if (/\b\d{12,19}\b|card number|\bpan\b|cvv/.test(s)) return "Q14";
-  if (/user-\d+|raw event|email address|phone number/.test(s)) return "Q13";
-  if (/which (analyst|people|person|employee)s?|who (uses|is)|named|by name|individual/.test(s)) return "Q12";
-  if (/retire|delete|disable|turn off|send |email them/.test(s)) return "Q21";
-  if (/next quarter|forecast|predict/.test(s)) return "Q20";
-  if (/caused?\b/.test(s)) return "Q17";
+  if (/\b\d{12,19}\b|card number|\bpan\b|cvv|aadhaar/.test(s)) return "Q14";
+  if (/user-\d+|raw event|email address|phone number|\bprompts?\b|transcripts?|\b(export|download|dump)\b.*\b(events?|logs?|records?|data)\b/.test(s)) return "Q13";
+  if (/which ([\w-]+ )?(analyst|people|person|employee|user|staff)s?\b|who (uses|is using|isn'?t|doesn'?t|never)|who (is|are) (the |our )?(least|most|top|laziest|power)|named|by name|\bnames?\b|individual|power users?|\blazy\b|top \d* ?(users|analysts|people)|(per|by|each) (employee|analyst|person|user)\b|employee[- ]level|seat holders?|\b(inactive|idle) (users|people|employees|analysts)\b|\b(list|show|find|identify)\b.*\b(users|people|employees|analysts|staff)\b/.test(s)) return "Q12";
+  if (/^\W*(please |kindly |can you |could you |go ahead and |i (want|need) you to )*(retire|delete|remove|disable|deactivate|update|change|modify|reassign|revoke|grant|turn off|shut down|send|email|cancel|suspend|pause)\b|\bfor me\b|email them/.test(s)) return "Q21";
+  if (/next (week|quarter|month|year)|forecast|predict|projection|\bwill\b.*\b(be|rise|grow|fall|drop|reach|keep|hit)\b|going to (be|rise|grow|fall)/.test(s)) return "Q20";
+  if (/caused?\b|did (the |our )?[\w\- ]*(agent|assistant|bot|ai|checker)s? (reduce|cut|lower|improve|increase|speed|boost|drive|make|lead)|thanks to (the )?(agent|ai)/.test(s)) return "Q17";
+  if (/team of [1-4]\b|[1-4][- ]person team/.test(s)) return "Q15";
+  const asked = (s.match(/\bregion [a-z]\b/g) || []).map(x => "Region " + x.slice(-1).toUpperCase());
+  if (/outside my (region|market)|other region|another market/.test(s) || asked.some(r => !ROLE().regions.includes(r))) return "Q16";
+  const SYN = [
+    [/how is .*utili[sz]ation defined|defin|what does .* mean|what counts as/, "Q02"],
+    [/why .*(value score|score).*(low|bad|poor)/, "Q19"],
+    [/task success|handle[- ]?time|cycle[- ]?time|per task/, "Q09"],
+    [/fresh|up to date|stale|late data/, "Q11"],
+    [/\b(agent|assistant|bot|checker)\b.*\b(working|doing|ok|healthy)\b/, "Q11"],
+    [/\bteams?\b|renew|contract|alert|worr|\brisks?\b|engineer[- ]built|drag[- ]and[- ]drop|which agents|agents? .*used/, null],
+    [/why .*(drop|fall|fell|declin|lower|down)/, "Q07"],
+    [/\bmau\b|monthly active|vendor/, "Q18"],
+    [/habitual|regular users|repeat users|sticky|(compare|which|best|worst|each) (the )?(regions?|markets?)|by (region|market)/, "Q03"],
+    [/newest country|new country|launch|cohort|new market/, "Q04"],
+    [/connector|integration|breaking|broken|fail/, "Q05"],
+    [/unregistered|registry|shadow|unknown agents?|rogue/, "Q06"],
+    [/value score|ai score|overall score|m19/, "Q08"],
+    [/hours|time sav|sav(e|es|ed|ing) .*time|verified hours|m17/, "Q09"],
+    [/cost per|unit cost|m18/, "Q10"],
+    [/error rate|errors|reliab|m10/, "Q11"],
+    [/utili[sz]ation|adoption|how many (people|users)|active users|actually us|use it|usage|uptake|seats|m01/, "Q01"]
+  ];
+  for (const [re, id] of SYN) if (re.test(s)) return id;
   const words = s.replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 3);
   let best = null, bs = 0;
   D.Agent_Test_Questions.forEach(q => { const qw = q.Question.toLowerCase(); const sc = words.filter(w => qw.includes(w)).length; if (sc > bs) { bs = sc; best = q["Question ID"]; } });
   return bs >= 2 ? best : null;
 }
+/* Unmatched: never a bare refusal. Offer the 3 closest answerable golden questions. */
+function suggestFor(text) {
+  const stop = new Set(["what","which","how","the","our","are","you","can","about","does","did","for","and","with","this","that","show","tell","give","much","many","doing"]);
+  const words = text.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 2 && !stop.has(w)).map(w => w.slice(0, 5));
+  const pool = D.Agent_Test_Questions.filter(q => q["Expected behaviour"] !== "Refuse" || ["Q08","Q09","Q10"].includes(q["Question ID"]));
+  return pool.map((q, i) => ({q, i, sc: words.filter(w => q.Question.toLowerCase().includes(w)).length}))
+    .sort((a, b) => b.sc - a.sc || a.i - b.i).slice(0, 3).map(x => x.q);
+}
 function ask(input) {
   const isId = /^Q\d\d$/.test(input), qid = isId ? input : matchQuestion(input);
   const qtext = isId ? D.Agent_Test_Questions.find(q => q["Question ID"] === input).Question : input;
-  const a = qid ? answerFor(qid) : ans("refuse", "I can only answer questions about the governed adoption, reliability and value metrics.", [], {reason:"Out of scope for the governed metric set", alt:"Try a golden question on the right, such as \"What is licence utilisation this month?\""});
+  const sug = qid ? null : suggestFor(input);
+  const a = qid ? answerFor(qid) : Object.assign(ans("refuse", "I couldn't map that to a governed metric, so I won't guess. I can answer these governed questions: " + sug.map((q, i) => `(${i + 1}) ${q.Question}`).join(" "), [], {reason:"Not matched to a governed metric", alt:"Click a suggestion below, or a golden question on the right."}), {sugg: sug.map(q => q["Question ID"])});
   const q = qid ? D.Agent_Test_Questions.find(x => x["Question ID"] === qid) : null;
   S.chat.push({you:qtext}); S.chat.push({a, qid, cat: q ? q.Category : "Out of scope"});
   audit("Agent question", (qid ? qid + ": " : "") + qtext, a.kind === "refuse" ? "Refused, safe alternative offered" : a.kind === "caveat" ? "Answered with caveat" : "Answered");
@@ -629,8 +668,9 @@ function renderAgent() {
     const defs = a.cites.filter(c => c.def).map(c => `${c.id} ${c.name} (${c.ver})\n  Definition: ${c.def}\n  Owner: ${c.owner}\n  Missing-data rule: ${c.miss}\n  Tests: ${c.tests}`).join("\n\n");
     return `<div class="msg ${a.kind === "refuse" ? "ref" : "ag"}" data-i="${i}"><div class="who">Agent${a.kind === "refuse" ? ": cannot answer" : a.kind === "caveat" ? ": answer with caveat" : ""} <span class="tag" style="font-weight:normal">${m.qid || "Free text"} · ${esc(m.cat)}</span></div>${a.text}
       ${a.reason ? `<div class="note"><b>Reason:</b> ${esc(a.reason)}</div>` : ""}${a.alt ? `<div style="margin-top:6px"><b>Safe alternative:</b> ${esc(a.alt)}</div>` : ""}
+      ${a.sugg ? `<div class="sugg" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${a.sugg.map(id => `<button class="btn sm" data-sq="${id}">${id} ${esc(D.Agent_Test_Questions.find(x => x["Question ID"] === id).Question)}</button>`).join("")}</div>` : ""}
       ${cites ? `<div class="cites">${cites}</div>` : ""}
-      ${(a.sql || defs) ? `<details><summary>Show reasoning, SQL and definition</summary>${a.steps ? `<ol class="small">${a.steps.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<ol class="small"><li>Matched to golden question ${m.qid || "(free text)"}; category ${esc(m.cat)}.</li><li>Role scope applied: ${esc(ROLES[S.role].label)}.</li><li>${a.kind === "refuse" ? "Policy check failed: refuse and offer the safe alternative." : "Policy checks passed: governed metrics only, aggregate, small groups suppressed."}</li></ol>`}${defs ? `<pre>${esc(defs)}</pre>` : ""}${a.sql ? `<pre>${esc(a.sql)}</pre>` : ""}</details>` : ""}
+      ${(a.sql || defs) ? `<details><summary>Show reasoning, SQL and definition</summary>${a.steps ? `<ol class="small">${a.steps.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : `<ol class="small"><li>Matched to golden question ${m.qid || "(free text)"}; category ${esc(m.cat)}.</li><li>Role scope applied: ${esc(ROLE().label)}.</li><li>${a.kind === "refuse" ? "Policy check failed: refuse and offer the safe alternative." : "Policy checks passed: governed metrics only, aggregate, small groups suppressed."}</li></ol>`}${defs ? `<pre>${esc(defs)}</pre>` : ""}${a.sql ? `<pre>${esc(a.sql)}</pre>` : ""}</details>` : ""}
       <div class="fbk"><button class="btn sm" data-fb="Helpful">Helpful</button><button class="btn sm" data-fb="Not helpful">Not helpful</button></div></div>`;
   }).join("") || `<div class="muted small">Pick a golden question on the right or type your own. Every answer comes from the governed metrics layer and cites the metric, version, owner and data-as-of date.</div>`;
   el.innerHTML = `<h1>Adoption Insights Agent</h1><p class="sub">Inside the dashboard. Reads governed metrics only, through a read-only metrics API; the SSO role decides what you can ask about. Scripted demo of every Agent_Test_Questions row (Q01 to Q21).</p>
@@ -644,6 +684,7 @@ function renderAgent() {
   $("#qin").onkeydown = e => { if (e.key === "Enter") $("#askb").click(); };
   $("#arole").onchange = e => setRole(e.target.value);
   $("#clr").onclick = () => { S.chat = []; renderAgent(); };
+  $$("[data-sq]", el).forEach(b => b.onclick = () => ask(b.dataset.sq));
   $$("[data-drill]", el).forEach(b => b.onclick = () => { S.cohort = b.dataset.drill; S.region = "All"; audit("Drill-down", "Agent answer to Regional view, " + b.dataset.drill, "Opened"); go("regional"); });
   $$("[data-fb]", el).forEach(b => b.onclick = () => { const i = b.closest(".msg").dataset.i; audit("Feedback", (S.chat[i].qid || "Free text") + ": " + b.dataset.fb, "Routed to metric owner for review"); b.parentNode.innerHTML = `<span class="small muted">Thanks. "${b.dataset.fb}" sent to the metric owner for review.</span>`; });
 }
@@ -658,6 +699,7 @@ function liveTests() {
   t.push(["M19 withheld when any pillar is missing", (() => { const keep = S.missing.slice(); S.missing[0] = true; const r = score().state === "withheld"; S.missing = keep; return r; })()]);
   t.push(["M18 not calculated without verified hours", (() => { const keep = S.missing[2]; S.missing[2] = true; const r = costPerHour() === null; S.missing[2] = keep; return r; })()]);
   t.push(["M04 interactions match Expected_Results on Golden_Events (gap 10 s)", expectedChecks(10).every(c => c[2])]);
+  t.push(["Unknown or missing role resolves to least privilege (deny by default)", roleKey("superadmin") === "guest" && roleKey(undefined) === "guest" && roleKey("exec") === "exec" && (() => { const keep = S.role; S.role = "nobody"; const r = answerFor("Q01").kind === "refuse" && answerFor("Q02").kind === "answer"; S.role = keep; return r; })()]);
   t.push(["Every Agent_Test_Questions row has a scripted answer for every role", Object.keys(ROLES).every(r => { const keep = S.role; S.role = r; const ok = D.Agent_Test_Questions.every(q => { const a = answerFor(q["Question ID"]); return a && a.text; }); S.role = keep; return ok; })]);
   return t;
 }
@@ -709,7 +751,7 @@ function renderGov() {
 }
 
 /* Header controls */
-function setRole(r) { S.role = r; S.region = "All"; $("#role").value = r; audit("Role switch", "Viewing as " + ROLES[r].label, "Scope applied"); render(); }
+function setRole(r) { S.role = roleKey(r); S.region = "All"; $("#role").value = S.role; audit("Role switch", "Viewing as " + ROLE().label + (S.role !== r ? " (requested: " + String(r || "none") + ")" : ""), S.role === "guest" ? "Deny by default" : "Scope applied"); render(); }
 function header() {
   $("#role").innerHTML = Object.entries(ROLES).map(([k, r]) => `<option value="${k}">${r.label}</option>`).join("");
   $("#role").value = S.role; $("#role").onchange = e => setRole(e.target.value);
@@ -742,7 +784,7 @@ function tour(i) {
   $("#tx").onclick = () => tour(-1); $("#tp").onclick = () => tour(i - 1); $("#tn").onclick = () => tour(i + 1);
 }
 document.addEventListener("keydown", e => { if (TI < 0 || e.target.tagName === "INPUT") return; if (e.key === "ArrowRight") tour(TI + 1); if (e.key === "ArrowLeft") tour(TI - 1); if (e.key === "Escape") tour(-1); });
-window.DEMO = {applyPreset, PRESETS, renewal, go, tour, ask, setRole, S, liveTests, answerFor, ROLES};
+window.DEMO = {applyPreset, PRESETS, renewal, go, tour, ask, setRole, S, liveTests, answerFor, ROLES, roleKey, matchQuestion, suggestFor};
 header(); go(location.hash && SCREENS.some(s => "#" + s[0] === location.hash) ? location.hash.slice(1) : "exec");
 </script>
 </body></html>

@@ -80,7 +80,9 @@ On the workbook's extended synthetic set it reproduces **all 35 Expected_Results
 The UI follows the deck's brand: white background, charcoal `#222222`, orange `#F28C28` as the accent, teal `#0F5E63` only for verified items, and Arial. Red is used only for critical risk.
 
 ### The agent and its "brain"
-- **Safety guards are always deterministic** and run first: individual surveillance, raw events or PII, small groups (< 5), out-of-scope regions (row-level security by persona), forecasts, causal claims, writes or actions, and ungoverned metrics are refused with a safe alternative. Anything it can't match is refused, never guessed.
+- **Safety guards are always deterministic** and run first: individual surveillance, raw events or PII, small groups (< 5), out-of-scope regions (row-level security by persona), forecasts, causal claims, writes or actions, and ungoverned metrics are refused with a safe alternative. Anything it can't match is never guessed: it says so and offers the 3 closest governed questions it can answer.
+- **Deny by default on role.** A missing or unrecognised persona resolves to the least-privileged `guest` role (no data scope; definitions only), in the API, the agent and the static prototype. It never falls back to Executive. In production the role is an SSO token claim, not a request field.
+- **Broad but governed coverage.** Beyond the 21 golden questions it answers panel-style paraphrases: a named agent's health or time saved (M17 study status plus its governed usage), reliability by agent, which agents are used most, engineer-built vs drag-and-drop, team usage (teams under 5 seats suppressed), region comparison, weekly trend inside the closed period, data freshness, alerts, seat reclaim, and outcome metrics that need study data (M06 to M09, refused with the reason).
 - **The brain only routes.** It picks one governed tool (for example `m01`, `m19`, `renewal`). The tool then runs real SQL on the warehouse and returns the answer with metric ID + version + data-as-of and the SQL. The model never states a number.
 - **Default brain: a small open model running locally at zero cost through [Ollama](https://ollama.com).** If Ollama isn't reachable, or the model returns anything outside the tool list, the agent falls back automatically to the **deterministic rules router**, which covers everything on its own. The chat header shows which brain is active.
 
@@ -98,7 +100,7 @@ OLLAMA_MODEL=qwen2.5:3b-instruct python -m app
 ```
 The model gets the question plus the list of governed tools, and Ollama's structured output (a JSON schema with an enum of tool names) forces its reply to be one tool name or `none`.
 
-**Evaluate whichever brain is active:** `python tools/eval_agent.py` (or `--brain rules|ollama|openai`) runs the 21 golden questions plus refusal and paraphrase probes and prints the pass rate. The rules brain scores 21/21 on the golden questions and 29/29 overall. Run it with your model before the interview; if the model scores lower, start the app with `NP_BRAIN=rules`.
+**Evaluate whichever brain is active:** `python tools/eval_agent.py` (or `--brain rules|ollama|openai`) runs the 21 golden questions, 8 guard and paraphrase probes, and the 64-question unscripted probe set in `tests/data/probes.json` (a 24-question panel set with 17 should-answer and 7 should-refuse, plus 40 extra paraphrases, adversarial asks and role checks), and prints the pass rates. The rules brain scores 21/21 on the golden questions, 29/29 on the guard probes, 24/24 on the panel set and 40/40 on the extras. Run it with your model before the interview; if the model scores lower, start the app with `NP_BRAIN=rules`.
 
 **Golden questions:** all 21 Agent_Test_Questions get the expected behaviour (answer, answer with caveat, or refuse) in the workbook's own state, with no verified outcome data yet. pytest always runs against the rules brain, and `tests/test_brain.py` checks Ollama routing, guard order and fallback against a fake Ollama server.
 
@@ -119,7 +121,7 @@ Upload your own `events.csv`, `seats.csv` and `registry.csv` on the **Data** tab
 ### Tests
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                      # pipeline + agent + API + Playwright UI smoke test
+python -m pytest -q                      # 159 tests: pipeline + agent + probes + persona + API + Playwright UI smoke test
 ```
 The UI test needs a Chrome/Chromium (set `CHROME_PATH` if it isn't at `/usr/bin/google-chrome`) and writes `docs/screenshots/app-*.png`; it skips if Playwright is missing.
 
@@ -168,7 +170,7 @@ The UI test needs a Chrome/Chromium (set `CHROME_PATH` if it isn't at `/usr/bin/
 | Missing interaction IDs (drag-and-drop heavy) | Continue limited pilot |
 | Critical-risk breach (privacy) | Renew with remediation conditions (score flagged red) |
 
-Personas: Executive sponsor, Regional lead A, Regional lead B, Platform engineer, Fraud operations lead. A **Guided demo** button runs a 6-step story. A walkthrough video is in `docs/demo.mp4`.
+Personas: Executive sponsor, Regional lead A, Regional lead B, Platform engineer, Fraud operations lead, plus "Unrecognised role (least privilege)" to show deny by default (any unknown role lands there). A **Guided demo** button runs a 6-step story. A walkthrough video is in `docs/demo.mp4`.
 
 ### Screenshots
 ![Live product: executive view](docs/screenshots/app-02-executive.png)

@@ -60,6 +60,9 @@ def test_walkthrough(page):
     assert "69.6%" in txt and "Refused" in txt and "Safe alternative" in txt and "M01 v1.0" in txt
     pg.fill("[data-testid=ask-input]", "What renewal outcome do you recommend?"); pg.click("[data-testid=ask-btn]")
     pg.wait_for_function("document.querySelectorAll('[data-testid=answer]').length>=4"); shot(pg, "05-agent")
+    pg.fill("[data-testid=ask-input]", "Tell me a joke about payments"); pg.click("[data-testid=ask-btn]")
+    pg.wait_for_selector("[data-testid=sugg-3]"); assert "I can answer these governed questions" in pg.inner_text("[data-testid=chat]")
+    pg.click("[data-testid=sugg-1]"); pg.wait_for_function("document.querySelectorAll('[data-testid=answer]').length>=6")
     pg.click("#tab-alerts"); pg.wait_for_selector("[data-testid=alerts]"); shot(pg, "06-alerts")
     pg.click("#tab-compare"); pg.wait_for_selector("[data-testid=compare]"); assert "Expand" in pg.inner_text("[data-testid=compare]"); shot(pg, "07-compare")
     pg.click("#tab-pack"); pg.wait_for_timeout(800); shot(pg, "08-boardpack")

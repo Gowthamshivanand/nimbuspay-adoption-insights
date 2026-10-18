@@ -1,4 +1,5 @@
-"""Adoption Insights Agent. READ-ONLY. Zero-cost default: a deterministic intent router + templates over the
+"""Adoption Insights Agent. READ-ONLY. Deny by default: an unknown or missing role gets the least-privileged persona.
+ Zero-cost default: a deterministic intent router + templates over the
 governed metrics, executing real SQL on the local warehouse. Every answer cites metric ID + version + data-as-of
 and shows the SQL. Unsafe asks are refused with a safe alternative. Optional LLM mode (env key) only picks an
 intent from the governed tool list; guards always run first and numbers always come from SQL, never the LLM."""
@@ -11,13 +12,69 @@ PERSONAS = {
     "platform_engineer": dict(label="Platform engineer", regions=None),
     "fraud_ops_lead": dict(label="Fraud operations lead (Region A)", regions=["Region A"]),
     "finance": dict(label="Finance and Procurement", regions=None),
+    # Deny by default: a missing or unrecognised role gets NO data scope. In production the role is an SSO claim.
+    "guest": dict(label="Unrecognised role (least privilege)", regions=[]),
 }
-WRITE = r"\b(retire|delete|remove|disable|update|change|modify|drop table|insert|grant|revoke|turn off|shut down|reassign|send|email (them|him|her))\b"
-PII = r"(card number|\bpan\b|cvv|aadhaar|account number|phone number|email address|home address|raw events?|\buser-\d+|password)"
-INDIVIDUAL = r"(which (analysts?|users?|people|employees|staff|agents? users?)|who (uses|is using|used)|use the assistant least|least active (person|people|users?)|name the|rank (the )?(analysts|people|users|employees)|individual (usage|performance))"
-FORECAST = r"(next (quarter|month|year)|will (be|it|utili[sz]ation)|forecast|predict|projection|going to be)"
-CAUSAL = r"(\bcause[ds]?\b|caused|because of the (agent|ai)|did the .* (make|lead to|drive)|impact of the agent on)"
-UNGOVERNED = r"(sentiment|happiness|productivity score|\broi\b|morale|nps|engagement score|lines of code)"
+LEAST_PRIVILEGE = "guest"
+PUBLIC_INTENTS = {"define_m01"}          # the only tools a role-less caller may use: definitions, no data
+
+
+def resolve_persona(persona):
+    """Unknown, empty or missing role -> least-privileged persona. Never fall back to a privileged role."""
+    return persona if isinstance(persona, str) and persona in PERSONAS else LEAST_PRIVILEGE
+
+
+_WV = r"(retire|delete|remove|disable|deactivate|enable|update|change|modify|reassign|unassign|revoke|grant|turn off|switch off|shut down|send|email|notify|cancel|terminate|suspend|pause|block|reset|rename)"
+WRITE = (rf"(^\W*(please |kindly |can you |could you |would you |will you |go ahead and |just |now )*{_WV}\b"
+         rf"|^\W*i (want|need|would like) (you )?to {_WV}\b|\b{_WV}\b.*\bfor me\b|\b(drop table|insert into|delete from|truncate)\b|\bemail (them|him|her)\b)")
+PII = (r"(card number|\bpan\b|cvv|aadhaar|account number|phone number|email address|home address|\buser-\d+|password"
+       r"|\b(show|list|give|see|send|display|print|open|read|access|view|get)\b.*\braw (events?|logs?|data)|raw (events?|logs?) (for|of|from|by)\b"
+       r"|\b(export|download|dump|extract)\b.*\b(events?|logs?|records?|rows?|data)\b|event[- ]level|user[- ]level (data|records?)|\bprompts?\b|chat (history|logs?)|transcripts?)")
+INDIVIDUAL = (r"(which (analysts?|users?|people|persons?|employees?|staff|members?|individuals?|colleagues?|agents? users?)\b"
+              r"|who (uses|is using|used|isn'?t using|doesn'?t use|never uses|asks?|asked)\b"
+              r"|who (is|are) (the |our )?(least|most|top|bottom|best|worst|laziest|slowest|heaviest|lightest|power)"
+              r"|use the assistant least|(least|most) active (person|people|users?|analysts?|employees?|staff)"
+              r"|name the|by name|\bnamed\b|rank (the )?(analysts|people|users|employees|staff)|individual"
+              r"|(top|bottom) \d* ?(users|analysts|people|employees|performers)|power users?|\blazy\b|slacker|underperform"
+              r"|(per|by|each) (employee|analyst|person)\b|by user\b|each user\b"
+              r"|which ([\w-]+ )?(analysts?|employees?|staff|people|persons?)\b|(?<!agent )\bnames?\b|seat holders?|\b(inactive|idle) (users|people|employees|analysts|staff)\b"
+              r"|\b(list|show|name|identify|find|flag)\b.*\b(users|people|employees|analysts|staff|individuals)\b|(employee|analyst|person|user)[- ]level|\banalysts? (are|is)\b)")
+FORECAST = (r"(next (week|quarter|month|year)|\bwill\b.*\b(be|rise|grow|fall|drop|increase|decrease|reach|keep|hit|improve|look|need)\b"
+            r"|forecast|predict|projection|going to (be|rise|grow|fall|drop|need)|expect(ed)? (to|next)|in (3|6|12|three|six|twelve) months)")
+CAUSAL = (r"(\bcause[ds]?\b|caused|because of the (agent|ai)|did the .* (make|lead to|drive)|impact of the agent on"
+          r"|did (the |our )?[\w\- ]*(agent|assistant|bot|ai|copilot|checker|tool)s? (reduce|cut|lower|improve|increase|speed|boost|drive|make|lead|prevent|stop|decrease)"
+          r"|thanks to (the )?(agent|ai|assistant)|attribut(e|able)\b.*\bto (the )?(agent|ai|assistant)|because of (the )?(agent|ai|assistant))")
+UNGOVERNED = r"(sentiment|happiness|productivity|\broi\b|morale|\bnps\b|engagement score|lines of code)"
+
+AGENT_ALIAS = [(r"fraud", "AG-FRAUD-01"), (r"\bkyc\b", "AG-KYC-04"), (r"onboarding", "AG-ONB-02"), (r"summar", "AG-SUMM-03"), (r"\bx9\b", "AG-DND-X9")]
+AGENT_WORD = r"\b(agent|assistant|bot|copilot|checker|summari[sz]er|tool)\b"
+VALUE_WORDS = r"(\bsav(e|es|ed|ing)\b|\btime\b|\bhours?\b|worth|value|\bhelp(s|ing|ful)?\b|benefit|pay(ing)? off|useful|impact)"
+OUTCOME = [(r"task success|success rate|\bm07\b", "M07", "Task success rate", "task outcome labels"),
+           (r"handle[- ]?time|\bm08\b|fraud (review|case) time", "M08", "Fraud handle-time change", "the fraud handle-time comparison study"),
+           (r"cycle[- ]?time|\bm09\b|onboarding (time|speed)|faster onboarding|merchant onboarding", "M09", "Onboarding cycle-time change", "the onboarding cycle-time comparison study"),
+           (r"time saved per task|per task|\bm06\b", "M06", "Verified time saved per task", "the agreed time-and-motion or holdout study")]
+
+# Shown when nothing matches: the closest governed questions, never a guess.
+SUGGEST = [
+    ("What is licence utilisation this month?", "utilisation adoption usage active users people use licence seats rate"),
+    ("Show the licence funnel and unused seats", "funnel seats paid unused shelfware purchased assigned waste"),
+    ("Which seats can we take back at renewal?", "reclaim seats cut renewal take back save money right-size"),
+    ("What renewal outcome do you recommend?", "renew renewal contract recommend worth buy money decision vendor"),
+    ("How are interactions counted?", "count interaction events questions overstate inflate meaning definition"),
+    ("Why is vendor MAU higher than our active users?", "vendor mau monthly logins dashboard numbers match"),
+    ("Compare engineer-built and drag-and-drop agents", "engineer drag drop build type no-code compare agents"),
+    ("Which agents are used the most?", "agents used most popular top list ranking which"),
+    ("How reliable are our agents?", "reliable reliability errors failures broken breaking crash agents"),
+    ("Is the fraud agent saving analysts time?", "fraud kyc onboarding agent saving time hours value analysts"),
+    ("Which connector has the highest failure rate this week?", "connector failure integration api email"),
+    ("Which team uses it least?", "team teams least most lowest usage group"),
+    ("Which region has the best adoption?", "region market country compare best worst"),
+    ("Is usage going up or down?", "trend week weekly up down growing declining over time"),
+    ("Is our data up to date?", "fresh freshness late stale data current restatement"),
+    ("What should leadership worry about?", "alerts risks worry issues problems flags attention"),
+    ("What is our AI value score?", "value score m19 pillars overall score"),
+    ("How many agents are unregistered?", "unregistered shadow registry unknown agents rogue"),
+]
 
 
 def _sql(db, sql, args=()):
@@ -25,31 +82,58 @@ def _sql(db, sql, args=()):
 
 
 def _scope(persona):
-    return PERSONAS.get(persona, PERSONAS["executive"])["regions"]
+    return PERSONAS[resolve_persona(persona)]["regions"]
 
 
 def _scope_sql(regions, col="region"):
-    if not regions: return "", ()
+    if regions is None: return "", ()
+    if not regions: return " AND 1=0", ()                    # least privilege: no rows at all
     return f" AND {col} IN ({','.join('?' * len(regions))})", tuple(regions)
+
+
+def _show(sql, args):
+    """SQL as displayed to the user, with bound parameters inlined (display only; execution stays parameterised)."""
+    for a in args: sql = sql.replace("?", repr(a), 1)
+    return sql
+
+
+def _regions_in(ql):
+    return sorted({"Region " + x.upper() for x in re.findall(r"\bregion ([a-z])\b", ql)})
+
+
+STOP = {"what", "which", "how", "the", "our", "are", "is", "you", "can", "about", "does", "did", "for", "and", "with", "this", "that", "show", "tell", "give", "me", "much", "many", "doing"}
+
+
+def _stem(w):
+    return w[:5]
 
 
 class Agent:
     def __init__(self, result, db):
         self.r, self.db = result, db
         self.metrics = {m: v for m, v in result["metrics"].items()}
+        self.agents = {a["agent"]: a for a in result["agents"]}
 
     # ---------- helpers ----------
-    def _resp(self, kind, text, metrics=(), sql="", alt=None, intent="", rows=None):
-        return dict(type=kind, text=text, intent=intent, safe_alternative=alt, sql=sql.strip() or None, rows=rows,
+    def _resp(self, kind, text, metrics=(), sql="", alt=None, intent="", rows=None, suggestions=None):
+        return dict(type=kind, text=text, intent=intent, safe_alternative=alt, sql=sql.strip() or None, rows=rows, suggestions=suggestions,
                     citations=[dict(metric=m, version=C.METRIC_VERSION, data_as_of=self.r["data_as_of"]) for m in metrics],
                     data_as_of=self.r["data_as_of"], label="Synthetic data", read_only=True)
 
     def refuse(self, why, alt, metrics=(), intent="refuse"):
         return self._resp("refuse", why, metrics, alt=alt, intent=intent)
 
+    def _agent_in(self, ql):
+        for aid in self.agents:
+            if aid.lower() in ql: return aid
+        if not re.search(AGENT_WORD, ql): return None
+        for pat, aid in AGENT_ALIAS:
+            if re.search(pat, ql) and aid in self.agents: return aid
+        return None
+
     # ---------- guards (always deterministic, run before any intent or LLM) ----------
     def guards(self, q, persona):
-        ql = q.lower()
+        ql = q.lower().strip()
         if re.search(WRITE, ql):
             return self.refuse("I can't do that: I am read-only and never change agents, seats, data or settings.",
                                "I can show this agent's usage, reliability and owner from the registry so the owner can decide and act through change control.", ["M16", "M10"], "write")
@@ -65,9 +149,9 @@ class Agent:
                                "I can show the figure at region level, or for the team once it has at least %d assigned seats." % C.MIN_GROUP, ["LF4"], "small_group")
         regions = _scope(persona)
         if regions:
-            asked = set(re.findall(r"region [a-z]\b", ql))
+            asked = _regions_in(ql)
             outside = "outside my region" in ql or "other region" in ql or "another market" in ql or "outside my market" in ql
-            if outside or any(a.title() not in [x.split(" (")[0] for x in regions] for a in asked):
+            if outside or any(a not in [x.split(" (")[0] for x in regions] for a in asked):
                 return self.refuse("That market is outside your access scope. Row-level security follows your SSO role (%s)." % ", ".join(regions),
                                    "I can show the same metric for your own region, or the company-wide total that renewal uses. Ask your sponsor for wider access if needed.", ["M01"], "scope")
         if re.search(FORECAST, ql):
@@ -81,14 +165,23 @@ class Agent:
                                "Governed alternatives: M01 utilisation, M02 habitual users, M04 interactions per active user, M17 verified hours, M19 value score. Propose new metrics to the metric owner (cap of 25).", [], "ungoverned")
         return None
 
+    def no_role(self):
+        return self.refuse("I can't show data: your role isn't recognised, so you get least-privilege access (deny by default). In production the role comes from your SSO token, never from the request.",
+                           "Sign in with a recognised role (executive, regional lead, platform engineer, fraud operations lead, finance). Without one I can still explain definitions, e.g. 'How is licence utilisation defined?'", [], "no_role")
+
     # ---------- intents ----------
     def m01(self, q, persona):
         reg = _scope(persona); w, a = _scope_sql(reg)
+        asked = _regions_in(q.lower())
+        if asked:
+            w += " AND (" + " OR ".join("region LIKE ?" for _ in asked) + ")"; a += tuple(x + "%" for x in asked)
         sql = f"SELECT SUM(active) AS active, SUM(assigned) AS assigned,\n  ROUND(100.0*SUM(active)/SUM(assigned),1) AS m01_pct\nFROM user_funnel WHERE assigned = 1{w};"
         act, asg, v = _sql(self.db, sql, a)[0]
-        sc = f" for {', '.join(reg)}" if reg else ""
+        if not asg:
+            return self._resp("caveat", "No assigned seats match that scope in this data set.", ["M01"], _show(sql, a), intent="M01")
+        sc = f" for {', '.join(asked)}" if asked else (f" for {', '.join(reg)}" if reg else "")
         return self._resp("answer", f"Licence utilisation{sc} is {v}% ({act} active users / {asg} assigned seats). Active = at least one qualifying interaction in the 28-day period.",
-                          ["M01"], sql.replace("?", repr(reg[0]) if reg else "?"), intent="M01")
+                          ["M01"], _show(sql, a), intent="M01")
 
     def define_m01(self, q, persona):
         return self._resp("answer", "M01 Licence utilisation = Active users (LF4) / Assigned seats (LF2). Active means at least one qualifying interaction (an agent run that returned a response) in the 28-day period. Logins never count. Version " + C.METRIC_VERSION + ", working definition to agree.", ["M01"], intent="define_M01")
@@ -98,7 +191,7 @@ class Agent:
         sql = f"SELECT region, SUM(habitual) AS habitual, SUM(assigned) AS assigned,\n  ROUND(100.0*SUM(habitual)/SUM(assigned),1) AS m02_pct\nFROM user_funnel WHERE assigned = 1{w}\nGROUP BY region HAVING SUM(assigned) >= {C.MIN_GROUP} ORDER BY m02_pct DESC;"
         rows = _sql(self.db, sql, a)
         txt = "; ".join(f"{r[0]}: {r[3]}% ({r[1]}/{r[2]})" for r in rows)
-        return self._resp("answer", f"Habitual users (active in 3+ of 4 weeks) by market: {txt}.", ["M02"], sql, intent="M02", rows=rows)
+        return self._resp("answer", f"Habitual users (active in 3+ of 4 weeks) by market: {txt}.", ["M02"], _show(sql, a), intent="M02", rows=rows)
 
     def cohort(self, q, persona):
         sql = "SELECT region, SUM(assigned) AS lf2, SUM(provisioned) AS lf3, SUM(active) AS lf4, SUM(engaged) AS lf5, SUM(habitual) AS lf6\nFROM user_funnel WHERE region LIKE '%launch%'\nGROUP BY region;"
@@ -161,7 +254,8 @@ class Agent:
 
     def mau(self, q, persona):
         u = self.r["users"]
-        return self._resp("caveat", f"No. MAU counts anyone with a logged event, logins included ({u['vendor_mau_proxy']} users here), but only {len(u['active'])} were active and {len(u['habitual'])} habitual. More logins is not more value; value needs verified outcomes (M17) and the full M19 with its pillars.",
+        lead = "No. " if re.search(r"doubl|so did|so is|means? more value|value (go|went) up", q.lower()) else "Vendor MAU is higher because it counts activity, not use. "
+        return self._resp("caveat", lead + f"MAU counts anyone with a logged event, logins included ({u['vendor_mau_proxy']} users here), but only {len(u['active'])} were active and {len(u['habitual'])} habitual, so MAU overstates active users by {u['mau_overstatement']}. More logins is not more value; value needs verified outcomes (M17) and the full M19 with its pillars.",
                           ["M01", "M02", "M19"], intent="mau")
 
     def why_low(self, q, persona):
@@ -178,7 +272,7 @@ class Agent:
     def counting(self, q, persona):
         g = self.r["grouping"]
         sql = "SELECT method, COUNT(*) AS interactions, SUM(qualifying) AS qualifying FROM interactions GROUP BY method;"
-        return self._resp("answer", f"{self.r['quality']['clean_events']} clean events became {g['interactions']} logical interactions ({g['exact']} exact by interaction ID, {g['approximate']} approximate by sessionisation, {C.SESSION_GAP_S} s gap); {g['qualifying']} qualify. Counting raw non-login events would overstate use {g['inflation']}x.",
+        return self._resp("answer", f"One interaction = one question a person asked an agent, however many events it writes (the run, searches, connector calls). {self.r['quality']['clean_events']} clean events became {g['interactions']} logical interactions ({g['exact']} exact by interaction ID, {g['approximate']} approximate by sessionisation, {C.SESSION_GAP_S} s gap); {g['qualifying']} qualify (the agent returned a response). Counting raw non-login events would overstate use {g['inflation']}x.",
                           ["M04", "M20"], sql, intent="counting", rows=_sql(self.db, sql))
 
     def renewal(self, q, persona):
@@ -193,34 +287,220 @@ class Agent:
         m = self.metrics["M04"]
         return self._resp("caveat" if m["approximate"] else "answer", f"Interactions per active user (M04) is {m['value']} ({m['note']}).{' Partly approximate: some interactions are sessionised.' if m['approximate'] else ''}", ["M04"], intent="M04")
 
-    INTENTS = [
-        (r"how is .*utili[sz]ation defined|define .*utili[sz]ation|definition of .*utili[sz]ation", "define_m01"),
+    # ---------- broader governed tools (same rules: SQL or pipeline numbers only, cited) ----------
+    def _agent_sql(self, aid):
+        sql = ("SELECT COUNT(*) AS interactions, SUM(qualifying) AS qualifying, COUNT(DISTINCT user_id) AS users,\n"
+               "  SUM(method='exact') AS exact\nFROM interactions WHERE agent_id = ?;")
+        return sql, _sql(self.db, sql, (aid,))[0]
+
+    def agent_health(self, q, persona):
+        aid = self._agent_in(q.lower())
+        if not aid: return self.reliability(q, persona)
+        a = self.agents[aid]; sql, (n, qual, users, exact) = self._agent_sql(aid)
+        flags = []
+        if a["M10"] is not None and a["M10"] > C.M10_MAX: flags.append(f"error rate above the {C.M10_MAX:g}% gate")
+        if a["M11"] is not None and a["M11"] > C.M11_MAX: flags.append(f"connector failures above the {C.M11_MAX:g}% gate")
+        if not a["registered"]: flags.append("not in the registry (owner to confirm)")
+        verdict = ("Watch: " + "; ".join(flags) + ".") if flags else f"Within the placeholder reliability gates (M10 <= {C.M10_MAX:g}%, M11 <= {C.M11_MAX:g}%)."
+        return self._resp("answer", f"{a['name']} ({aid}, {a['build_type']}, {'registered' if a['registered'] else 'UNREGISTERED'}): {qual} qualifying interactions this period; "
+                          f"agent error rate (M10) {a['M10']}% ({a['failed_runs']}/{a['runs']} runs); connector failure rate (M11) {a['M11']}% ({a['failed_calls']}/{a['calls']} calls); "
+                          f"events without interaction ID (M20) {a['M20']}%{' so its counts are approximate' if a['M20'] else ''}. {verdict} Working is not the same as saving time: that needs M17.",
+                          ["M10", "M11", "M20", "M04"] + ([] if a["registered"] else ["M16"]), _show(sql, (aid,)), intent="agent_health")
+
+    def agent_value(self, q, persona):
+        aid = self._agent_in(q.lower())
+        if not aid: return self.m17(q, persona)
+        a = self.agents[aid]; sql, (n, qual, users, exact) = self._agent_sql(aid)
+        m = self.metrics["M17"]
+        ucount = f"{users} people" if users >= C.MIN_GROUP else f"fewer than {C.MIN_GROUP} people"
+        if m["value"] is None:
+            head = (f"Not provable from logs yet. Time saved is M17 (verified hours), and it needs the agreed comparison study (staggered rollout or holdout) for {a['name']}; "
+                    f"there is no verified result this period, and usage time is not time saved.")
+        else:
+            head = (f"Company-wide verified hours saved (M17) are {m['value']:g} h/week from the agreed study; attributing a share to {a['name']} needs that study's per-workflow cut, "
+                    f"so I don't split it by agent.")
+        return self._resp("caveat", head + f" What the governed logs do show for {aid}: {qual} qualifying interactions from {ucount}, "
+                          f"agent error rate (M10) {a['M10']}%, connector failure rate (M11) {a['M11']}%. Study design: compare handle time for matched cases with and without the agent, agreed baseline, owner sign-off.",
+                          ["M17", "M04", "M10", "M11"], _show(sql, (aid,)), intent="agent_value")
+
+    def reliability(self, q, persona):
+        rows = sorted(self.r["agents"], key=lambda a: (-(a["M10"] or 0) - (a["M11"] or 0)))
+        txt = "; ".join(f"{a['agent']} M10 {a['M10']}%, M11 {a['M11']}%" for a in rows)
+        e = self.r["renewal"]["evidence"]["e4"]
+        sql = ("SELECT agent_id,\n  ROUND(100.0*SUM(event_type='agent_run' AND status='failed')/NULLIF(SUM(event_type='agent_run'),0),1) AS m10_pct,\n"
+               "  ROUND(100.0*SUM(event_type='connector_call' AND status='failed')/NULLIF(SUM(event_type='connector_call'),0),1) AS m11_pct\n"
+               "FROM events_clean GROUP BY agent_id ORDER BY m10_pct + m11_pct DESC;")
+        return self._resp("answer", f"Period agent error rate (M10) is {self.metrics['M10']['value']}% ({self.metrics['M10']['note']}) and connector failure rate (M11) is {self.metrics['M11']['value']}% ({self.metrics['M11']['note']}). "
+                          f"By agent, worst first: {txt}. Placeholder gates: M10 <= {C.M10_MAX:g}%, M11 <= {C.M11_MAX:g}%; renewal reliability evidence is '{e}'.",
+                          ["M10", "M11"], sql, intent="reliability", rows=[[a["agent"], a["M10"], a["M11"]] for a in rows])
+
+    def agent_usage(self, q, persona):
+        sql = ("SELECT i.agent_id, r.name, r.registered, r.build_type_used, SUM(i.qualifying) AS qualifying, COUNT(*) AS interactions\n"
+               "FROM interactions i LEFT JOIN agent_registry r ON r.agent_id = i.agent_id\nGROUP BY i.agent_id ORDER BY qualifying DESC;")
+        rows = _sql(self.db, sql)
+        txt = "; ".join(f"{r[0]} {r[1] or 'unknown'} ({r[3]}{'' if r[2] else ', UNREGISTERED'}): {r[4]}" for r in rows)
+        return self._resp("answer", f"{len(rows)} agents are in use. Ranked by qualifying interactions (logical questions answered, not raw events or logins): {txt}. "
+                          "Drag-and-drop agents' counts are approximate (no interaction ID). Usage ranks activity, not time saved.",
+                          ["M04", "M16", "M20"], sql, intent="agent_usage", rows=rows)
+
+    def build_compare(self, q, persona):
+        sql = ("SELECT build_type, COUNT(*) AS interactions, SUM(qualifying) AS qualifying, SUM(method='exact') AS exact\n"
+               "FROM interactions GROUP BY build_type ORDER BY build_type DESC;")
+        rows = _sql(self.db, sql)
+        rel = {}
+        for a in self.r["agents"]:
+            d = rel.setdefault(a["build_type"], [0, 0]); d[0] += a["failed_runs"]; d[1] += a["runs"]
+        parts = []
+        for bt, n, qual, ex in rows:
+            m20 = self.r["m20"].get(bt, {}).get("pct")
+            fr, rn = rel.get(bt, [0, 0])
+            parts.append(f"{bt}: {n} interactions ({ex} exact by interaction ID, {n - ex} approximate), {qual} qualifying, {m20}% of events without an interaction ID, agent error rate {round(100 * fr / rn, 1) if rn else 'n/a'}% ({fr}/{rn} runs)")
+        return self._resp("answer", "; ".join(parts) + ". Drag-and-drop agents log no interaction ID, so their interactions are sessionised and labelled approximate; "
+                          "compare their volumes as estimates, not exact counts. Engineer-built agents are counted exactly.",
+                          ["M20", "M04", "M10"], sql, intent="build_compare", rows=rows)
+
+    def team_usage(self, q, persona):
+        reg = _scope(persona); w, a = _scope_sql(reg)
+        sql = (f"SELECT team_id, region, SUM(active) AS active, SUM(assigned) AS assigned\nFROM user_funnel WHERE assigned = 1{w}\n"
+               f"GROUP BY team_id ORDER BY team_id;  -- teams under {C.MIN_GROUP} assigned seats are suppressed")
+        rows = _sql(self.db, sql, a)
+        shown = sorted([r for r in rows if r[3] >= C.MIN_GROUP], key=lambda r: r[2] / r[3])
+        hidden = [r[0] for r in rows if r[3] < C.MIN_GROUP]
+        regs = {}
+        for t, rg, act, asg in rows:
+            d = regs.setdefault(rg, [0, 0]); d[0] += act; d[1] += asg
+        regtxt = "; ".join(f"{rg} {round(100 * v[0] / v[1], 1)}% ({v[0]}/{v[1]})" for rg, v in sorted(regs.items(), key=lambda kv: kv[1][0] / kv[1][1]) if v[1] >= C.MIN_GROUP)
+        tt = "; ".join(f"{t} ({rg}) {round(100 * act / asg, 1)}% ({act}/{asg})" for t, rg, act, asg in shown) or "none"
+        low = f" Lowest reportable team: {shown[0][0]}." if shown else ""
+        return self._resp("answer", f"Team-level licence utilisation (M01), teams with at least {C.MIN_GROUP} assigned seats: {tt}.{low} "
+                          f"Suppressed to protect individuals (fewer than {C.MIN_GROUP} seats): {', '.join(hidden) or 'none'}. Region level instead, lowest first: {regtxt or 'none reportable'}.",
+                          ["M01", "LF4"], _show(sql, a), intent="team_usage", rows=[list(r) for r in shown])
+
+    def region_compare(self, q, persona):
+        reg = _scope(persona); w, a = _scope_sql(reg)
+        sql = (f"SELECT region, ROUND(100.0*SUM(active)/SUM(assigned),1) AS m01_pct, ROUND(100.0*SUM(habitual)/SUM(assigned),1) AS m02_pct, SUM(assigned) AS assigned\n"
+               f"FROM user_funnel WHERE assigned = 1{w}\nGROUP BY region HAVING SUM(assigned) >= {C.MIN_GROUP} ORDER BY m01_pct DESC;")
+        rows = _sql(self.db, sql, a)
+        if not rows:
+            return self._resp("caveat", "No market in your scope has enough assigned seats to report.", ["M01"], _show(sql, a), intent="region_compare")
+        txt = "; ".join(f"{r[0]}: utilisation {r[1]}%, habitual {r[2]}% ({r[3]} seats)" for r in rows)
+        best_h = max(rows, key=lambda r: r[2])
+        note = " A launch cohort is still ramping, so read it against its launch date." if any("launch" in r[0].lower() for r in rows) else ""
+        return self._resp("answer", f"By market, highest utilisation first: {txt}. Highest utilisation: {rows[0][0]}; most habitual use: {best_h[0]}.{note} Utilisation alone is not adoption quality; read it with habitual use.",
+                          ["M01", "M02"], _show(sql, a), intent="region_compare", rows=rows)
+
+    def trend(self, q, persona):
+        reg = _scope(persona); w, a = _scope_sql(reg)
+        sql = f"SELECT day/7 + 1 AS week, SUM(qualifying) AS qualifying, COUNT(DISTINCT user_id) AS users\nFROM interactions WHERE 1=1{w}\nGROUP BY week ORDER BY week;"
+        rows = _sql(self.db, sql, a)
+        wk = ", ".join(f"W{r[0]} {r[1]}" for r in rows)
+        us = ", ".join(f"W{r[0]} {r[2] if r[2] >= C.MIN_GROUP else '<' + str(C.MIN_GROUP)}" for r in rows)
+        return self._resp("caveat", f"This data set holds one closed 28-day period, so there is no prior period to compare, and I don't project forward. Within the period, qualifying interactions by week: {wk}; "
+                          f"weekly active users: {us}. Read the last week with care: {self.r['quality']['late']} events arrived late and {self.r['quality']['after_close']} after close (restatement).",
+                          ["M04", "M02", "M12"], _show(sql, a), intent="trend", rows=rows)
+
+    def freshness(self, q, persona):
+        g, ql = self.r["grouping"], self.r["quality"]
+        return self._resp("answer", f"Data as of {self.r['data_as_of']}, period {self.r['period']}. {ql['late']} events arrived late (over {C.LATE_H} h) and are counted on event time, flagged; "
+                          f"{ql['after_close']} rows arrived after the close (+{C.CLOSE_AFTER_H} h) and go to restatement, which would move qualifying interactions from {g['qualifying']} to {g['restated_qualifying']}. "
+                          f"Closed-period numbers do not change silently.", ["M12"], "SELECT SUM(late) AS late_events, MAX(ingested_at) AS last_load FROM events_clean;", intent="freshness")
+
+    def alerts(self, q, persona):
+        al = self.r["alerts"]
+        if not al:
+            return self._resp("answer", "No alerts for this data set.", ["M01"], intent="alerts")
+        order = {"high": 0, "medium": 1, "low": 2, "info": 3}
+        al = sorted(al, key=lambda x: order.get(x["severity"], 9))
+        txt = " ".join(f"[{x['severity']}, {x['metric']}] {x['text']}" for x in al[:5])
+        return self._resp("answer", f"Top alerts from the governed metrics: {txt} Renewal outcome right now: {self.r['renewal']['outcome']}.",
+                          list(dict.fromkeys(x["metric"] for x in al)), intent="alerts")
+
+    def reclaim(self, q, persona):
+        from . import features as F
+        sql = "SELECT team_id, region, purchased_seats, user_id, assigned, provisioned FROM seats;"
+        seats = [dict(team_id=t, region=rg, purchased_seats=str(p), user_id=u, assigned="yes" if asg else "no", provisioned="yes" if pr else "no")
+                 for t, rg, p, u, asg, pr in _sql(self.db, sql)]
+        rc = F.seat_reclaim(dict(seats=seats), self.r)
+        reg = _scope(persona)
+        rows = [t for t in rc["rows"] if reg is None or any(t["region"].startswith(x) for x in reg)]
+        total = sum(t["reclaimable"] for t in rows)
+        tt = "; ".join(f"{t['team']} {t['reclaimable']} ({t['never_assigned']} never assigned, {t['buffer_kept']} kept as headroom)" for t in rows if t["reclaimable"])
+        scope = "" if reg is None else f" in {', '.join(reg)}"
+        return self._resp("answer", f"Seat reclaim finder{scope}: {total} of {sum(t['purchased'] for t in rows)} purchased seats could be reclaimed at renewal. {self.r['paid_unused']} paid seats have no qualifying use company-wide; "
+                          f"the finder keeps {int(C.RECLAIM_KEEP_BUFFER * 100)}% headroom per team. By team: {tt or 'none'}. Team-level only, no individual named; launch-cohort teams are reviewed after ramp-up. Seat price is a placeholder.",
+                          ["LF1", "LF2", "LF4", "M01"], sql, intent="reclaim", rows=[[t["team"], t["reclaimable"]] for t in rows])
+
+    def outcome(self, q, persona):
+        ql = q.lower()
+        mid, label, need = next(((m, l, n) for p, m, l, n in OUTCOME if re.search(p, ql)), ("M07", "Task success rate", "task outcome labels"))
+        m = self.metrics.get(mid)
+        if m and m["value"] is not None:
+            return self._resp("answer", f"{label} ({mid}) is {m['value']} {m['unit']} ({m['note']}).", [mid], intent="outcome")
+        return self.refuse(f"I can't give {label} ({mid}): it needs outcome data from {need}, which this data set doesn't have, and I don't impute or estimate it.",
+                           f"I can show the study design for {mid}, and the governed usage (M04) and reliability (M10) for that workflow in the meantime.", [mid], "outcome")
+
+    INTENTS_FIRST = [
+        (r"how is .*utili[sz]ation defined|define .*utili[sz]ation|definition of .*utili[sz]ation|what does .*utili[sz]ation mean", "define_m01"),
+        (r"what (does|is) (one|an|a single|1) interaction|interaction mean|define .*interaction|what counts as (a |an |one )?(use|interaction|question)", "counting"),
         (r"why .*(value score|m19|score).*(low|bad|poor)", "why_low"),
-        (r"why .*(drop|fall|fell|declin)", "why_drop"),
-        (r"mau.*(doubl|up|grew|increas)|doubl.*mau", "mau"),
-        (r"habitual", "m02_regions"),
-        (r"newest country|new country|launch|cohort", "cohort"),
+        (r"why .*(drop|fall|fell|declin|lower|low\b|down)", "why_drop"),
+        (r"interaction ids?|m20|sessionis|sessioniz|without (an )?(interaction )?ids?|missing ids?", "m20"),
+        (r"unregistered|registry|shadow|unknown agents?|rogue|unapproved", "m16"),
+        ("|".join(p for p, *_ in OUTCOME), "outcome"),
         (r"connector", "m11"),
-        (r"unregistered|registry", "m16"),
-        (r"value score|m19|ai score", "m19"),
-        (r"hours.*sav|time saved|m17", "m17"),
-        (r"cost per|m18|unit cost", "m18"),
-        (r"error rate|m10|errors|failed runs", "m10"),
-        (r"renew|renewal|recommend", "renewal"),
-        (r"funnel|seats|shelfware|unused", "funnel"),
-        (r"interaction id|m20|sessionis|sessioniz", "m20"),
-        (r"how (do|are) .*count|interactions? (count|total)|how many interactions|overstat|events", "counting"),
-        (r"per active user|m04|depth", "m04"),
-        (r"utili[sz]ation|m01|adoption", "m01"),
+    ]
+    INTENTS = [
+        (r"\bmau\b|monthly active|vendor'?s? (count|number|figure|dashboard|report|data|metric)s?|vendor says|numbers? (don'?t|do not) match", "mau"),
+        (r"habitual|regular users|repeat users|sticky|stickiness|3\+ of 4", "m02_regions"),
+        (r"newest country|new country|launch|cohort|new market", "cohort"),
+        (r"engineer[- ]built|drag[- ](and|n|&)[- ]drop|no[- ]code|low[- ]code|build types?|built by engineers", "build_compare"),
+        (r"reclaim|take back|claw ?back|right[- ]?siz|give back|(cut|drop|reduce|trim|remove|return|shed)\b.*\bseats?|seats?\b.*\b(cut|drop|reduce|trim|remove|return)\b|idle seats|which seats|seat savings|over[- ]?licen", "reclaim"),
+        (r"value score|m19|ai score|overall score|health index|interim index|adoption score", "m19"),
+        (r"hours.*sav|sav.*(time|hours)|time saved|verified hours|m17|time sav", "m17"),
+        (r"cost per|m18|unit cost|cost of (an |each )?hour", "m18"),
+        (r"(error rate|errors|failed runs|m10|fail).*(yesterday|today|latest|last day)|(yesterday|today|latest day).*(error|fail)", "m10"),
+        (r"reliab|error rate|errors|failed runs|m10|fail|breaking|broken|\bbreaks?\b(?!\s*down)|crash|outage|uptime|stabl", "reliability"),
+        (r"fresh|stale|up to date|up-to-date|late (events|data|rows|arriv)|m12|data as of|restat|last (updated|refresh|load)|how current", "freshness"),
+        (r"alert|worr|red flag|\brisks?\b|issues|problems|watch out|attention|concern|what should (i|we|leadership) (know|look|focus)", "alerts"),
+        (r"renew|renewal|recommend|contract|keep paying|worth (it|the money|paying)|should we (buy|keep|expand|continue|stop)|value for money", "renewal"),
+        (r"which agents|what agents|list (of |the |all |our )?agents|how many agents|agents? (are|is) (used|the most|most)|most[- ]used agent|top agents|rank(ing)? (the |our )?agents|agent usage|busiest agent|popular agent|agents? by usage", "agent_usage"),
+        (r"which teams?|what teams?|teams?\b.*\b(least|most|lowest|highest|best|worst|lag)|by team|per team|team[- ]level|each team|team-[a-c]\d|across teams", "team_usage"),
+        (r"which (region|market)s?|by (region|market)|across (the )?(regions|markets)|compare (the )?(regions|markets)|each (region|market)|(best|worst|top|lowest|highest|leading|lagging) (region|market)", "region_compare"),
+        (r"trend|going (up|down)|up or down|grow(ing|th)|increas|decreas|over time|week (on|over) week|by week|weekly|month (on|over) month|getting (better|worse)|improv|declin|momentum|rising|falling", "trend"),
+        (r"funnel|seats?|shelfware|unused|idle|licen[cs]es? (bought|purchased|paid)|paying for|wasted|paid for|purchased", "funnel"),
+        (r"how (do|are|is) .*count|interactions? (count|total)|how many interactions|overstat|events|double[- ]count|inflat|interactions?", "counting"),
+        (r"per active user|per user|m04|depth|how often|questions per|frequency|intensity", "m04"),
+        (r"utili[sz]ation|m01|adoption|how many (people|users|staff|employees|of us)|active users|actually us|using (it|the|ai)|use (it|the|ai)|uptake|usage|take[- ]?up|penetration", "m01"),
     ]
 
     def route(self, q):
         ql = q.lower()
+        for pat, fn in self.INTENTS_FIRST:
+            if re.search(pat, ql): return fn
+        if self._agent_in(ql):
+            return "agent_value" if re.search(VALUE_WORDS, ql) else "agent_health"
         for pat, fn in self.INTENTS:
             if re.search(pat, ql): return fn
         return None
 
-    def ask(self, q, persona="executive"):
+    def suggest(self, q, n=3):
+        words = {_stem(w) for w in re.findall(r"[a-z0-9]+", q.lower()) if len(w) > 2 and w not in STOP}
+        scored = []
+        for i, (s, kw) in enumerate(SUGGEST):
+            vocab = {_stem(w) for w in re.findall(r"[a-z0-9]+", (s + " " + kw).lower()) if len(w) > 2 and w not in STOP}
+            scored.append((-len(words & vocab), i, s))
+        return [s for _, _, s in sorted(scored)[:n]]
+
+    def unmatched(self, q):
+        sug = self.suggest(q)
+        r = self.refuse("I couldn't map that to a governed metric, so I won't guess. I can answer these governed questions: "
+                        + " ".join(f"({i + 1}) {s}" for i, s in enumerate(sug)),
+                        "Pick one of the suggestions, or ask about utilisation, seats, renewal, counting, reliability, agents, teams, regions or trends.", [], "unmatched")
+        r["suggestions"] = sug
+        return r
+
+    def ask(self, q, persona=None):
+        persona = resolve_persona(persona)                  # deny by default: unknown or missing role -> least privilege
         g = self.guards(q, persona)                      # safety guards are ALWAYS deterministic
         if g:
             g["mode"] = "rules (guard)"; return g
@@ -232,12 +512,14 @@ class Agent:
         if not fn:
             fn = self.route(q)                           # automatic fallback: deterministic router
             if b["kind"] != "rules": mode = "rules (fallback)"
-        if not fn:
-            r = self.refuse("I can only answer from the governed metrics, and I couldn't match your question to one.",
-                            "Try: 'What is licence utilisation?', 'Show the licence funnel', 'What is our AI value score?', 'Which connector fails most?', 'What renewal outcome do you recommend?'", [], "unmatched")
+        if fn and persona == LEAST_PRIVILEGE and fn not in PUBLIC_INTENTS:
+            r = self.no_role()
+        elif not fn:
+            r = self.unmatched(q)
         else:
             r = getattr(self, fn)(q, persona)            # numbers come from SQL / pipeline here, never from the model
         r["mode"] = mode
+        r["persona"] = persona
         return r
 
 
@@ -261,6 +543,18 @@ INTENT_HELP = {
     "renewal": "renewal recommendation / outcome",
     "m20": "events without interaction ID (M20)",
     "m04": "interactions per active user (M04)",
+    "agent_health": "how one named agent is doing: usage, error rate, connector failures (M10, M11, M20)",
+    "agent_value": "is a named agent saving time / worth it (M17 study status + its governed usage)",
+    "reliability": "how reliable the agents are overall, which agents fail most (M10, M11)",
+    "agent_usage": "which agents are used most, list of agents in use",
+    "build_compare": "compare engineer-built vs drag-and-drop agents",
+    "team_usage": "usage by team, which team uses it least or most (small teams suppressed)",
+    "region_compare": "compare markets/regions, best or worst region",
+    "trend": "is usage going up or down, weekly trend within the closed period",
+    "freshness": "data freshness, late data, restatement (M12)",
+    "alerts": "current alerts, risks, what to worry about",
+    "reclaim": "which seats to reclaim or cut at renewal (seat reclaim finder)",
+    "outcome": "outcome metrics needing study data: task success M07, fraud handle time M08, onboarding cycle time M09, time per task M06",
 }
 
 _BRAIN = {"t": 0, "v": None}

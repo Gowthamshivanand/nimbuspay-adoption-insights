@@ -106,15 +106,17 @@ def sample(key: str, name: str):
 
 class Ask(BaseModel):
     question: str
-    persona: str = "executive"
+    persona: str | None = None      # missing or unknown -> least-privileged persona (deny by default)
 
 
 @app.post("/api/ask")
 def ask(body: Ask):
     q = body.question.strip()[:500]
     if not q: raise HTTPException(422, "Empty question")
-    r = S.agent.ask(q, body.persona if body.persona in A.PERSONAS else "executive")
-    S.audit.execute("INSERT INTO audit VALUES(?,?,?,?,?,?,?,?)", (dt.datetime.now().isoformat(timespec="seconds"), S.key, body.persona, q,
+    persona = A.resolve_persona(body.persona)
+    r = S.agent.ask(q, persona)
+    logged = persona if persona == body.persona else f"{persona} (requested: {body.persona or 'none'})"
+    S.audit.execute("INSERT INTO audit VALUES(?,?,?,?,?,?,?,?)", (dt.datetime.now().isoformat(timespec="seconds"), S.key, logged, q,
                     r["type"], r["intent"], ",".join(c["metric"] for c in r["citations"]), r["mode"]))
     S.audit.commit()
     return r

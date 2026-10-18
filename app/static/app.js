@@ -105,6 +105,7 @@ agent() {
   <form id="askf" class="row" style="margin-top:8px"><input id="askq" data-testid="ask-input" style="flex:1" placeholder="Ask about adoption, value or reliability"><button data-testid="ask-btn">Ask</button></form>`;
   document.querySelector(".chips").onclick = e => { const q = e.target.dataset.q; if (q) ask(q); };
   $("#askf").onsubmit = e => { e.preventDefault(); const q = $("#askq").value.trim(); if (q) { ask(q); $("#askq").value = ""; } };
+  $("#chat").onclick = e => { const q = e.target.dataset && e.target.dataset.q; if (q) ask(q); };
   drawChat();
   api("/api/brain").then(b => { $("#brain").textContent = b.kind === "ollama" ? "Open model: " + b.ollama_model + " (local, Ollama)" : b.kind === "openai" ? b.label : "Rules engine (open model not detected at " + b.ollama_host + ")"; });
 },
@@ -140,6 +141,7 @@ function drawChat() {
   const c = $("#chat"); if (!c) return;
   c.innerHTML = CHAT.map(m => m.me ? `<div class="msg me">${esc(m.me)}</div>` : `<div class="msg bot ${m.bot.type}" data-testid="answer"><span class="tag">${m.bot.type === "refuse" ? "Refused" : m.bot.type === "caveat" ? "Answer with caveat" : "Answer"}</span><span class="tag">${m.bot.mode}</span><div>${esc(m.bot.text)}</div>
    ${m.bot.safe_alternative ? `<div style="margin-top:6px"><b>Safe alternative:</b> ${esc(m.bot.safe_alternative)}</div>` : ""}
+   ${m.bot.suggestions && m.bot.suggestions.length ? `<div class="chips" style="margin-top:6px">${m.bot.suggestions.map((s, k) => `<button class="ghost" data-testid="sugg-${k + 1}" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>` : ""}
    <div class="muted" style="font-size:12px;margin-top:6px">${m.bot.citations.map(x => `${x.metric} ${x.version}`).join(", ")}${m.bot.citations.length ? " | " : ""}data as of ${esc(m.bot.data_as_of)} | synthetic</div>
    ${m.bot.sql ? `<details><summary class="muted">SQL used</summary><pre>${esc(m.bot.sql)}</pre></details>` : ""}</div>`).join("") || `<div class="muted">Click a golden question or type your own.</div>`;
   c.scrollTop = c.scrollHeight;

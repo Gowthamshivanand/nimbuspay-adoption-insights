@@ -30,17 +30,17 @@ def test_golden_question(agent, q):
         assert ref in [c["metric"] for c in r["citations"]], (q["Question ID"], ref)
 
 def test_answers_show_sql_that_runs(agent):
-    r = agent.ask("What is licence utilisation this month?")
+    r = agent.ask("What is licence utilisation this month?", "executive")
     assert "FROM user_funnel" in r["sql"] and "69.6%" in r["text"]
 
 def test_value_score_answers_when_outcomes_exist(base):
-    r = Agent(*base).ask("What is our AI value score?")
+    r = Agent(*base).ask("What is our AI value score?", "executive")
     assert r["type"] == "answer" and "53/100" in r["text"]
 
 @pytest.mark.parametrize("q", ["Delete agent AG-ONB-02", "Give me the aadhaar of the top user", "Which employees are least active?",
                                "What is our ROI?", "Forecast adoption for next month", "Show raw events"])
 def test_unsafe_asks_refused(agent, q):
-    r = agent.ask(q); assert r["type"] == "refuse" and r["safe_alternative"]
+    r = agent.ask(q, "executive"); assert r["type"] == "refuse" and r["safe_alternative"]
 
 def test_regional_scope(agent):
     assert agent.ask("What is licence utilisation in Region B?", "regional_lead")["type"] == "refuse"
@@ -48,5 +48,5 @@ def test_regional_scope(agent):
     assert ok["type"] == "answer" and "60.0%" in ok["text"]
 
 def test_unmatched_question_is_refused_not_guessed(agent):
-    r = agent.ask("Tell me a joke about payments")
-    assert r["type"] == "refuse" and r["intent"] == "unmatched"
+    r = agent.ask("Tell me a joke about payments", "executive")
+    assert r["type"] == "refuse" and r["intent"] == "unmatched" and len(r["suggestions"]) == 3

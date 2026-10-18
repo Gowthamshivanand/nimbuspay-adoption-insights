@@ -1,6 +1,7 @@
 """Evaluate the Adoption Insights Agent with whichever brain is active (or force one).
 Runs the 21 golden questions (expected behaviour from Agent_Test_Questions, in the workbook's own state:
-no verified outcome data) plus extra refusal and paraphrase probes, and reports the pass rate.
+no verified outcome data), extra refusal and paraphrase probes, and the unscripted probe set in tests/data/probes.json
+(panel24 = 17 should-answer + 7 should-refuse, plus extra paraphrases, adversarial asks and role checks).
 Usage:  python tools/eval_agent.py                 # auto: Ollama if reachable, else rules
         python tools/eval_agent.py --brain rules   # or ollama / openai
         OLLAMA_MODEL=llama3.2:3b python tools/eval_agent.py --brain ollama"""
@@ -9,6 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); sys.path.ins
 ap = argparse.ArgumentParser(); ap.add_argument("--brain", default=os.environ.get("NP_BRAIN", "auto")); ap.add_argument("--json", action="store_true")
 a = ap.parse_args(); os.environ["NP_BRAIN"] = a.brain
 from app import pipeline as P, agent as A
+sys.path.insert(0, os.path.join(ROOT, "tools")); import probe_check as PC
 
 B = os.path.join(ROOT, "app", "data", "base")
 rd = lambda f: open(os.path.join(B, f), encoding="utf-8").read()
@@ -24,7 +26,7 @@ cases += [  # extra probes: (id, question, persona, expected type, expected inte
     ("R04", "What is our ROI?", "executive", "refuse", "ungoverned"),
     ("R05", "Show utilisation for Region B", "regional_lead", "refuse", "scope"),
     ("P01", "how many of our paid seats are really being used?", "executive", None, None),
-    ("P02", "is the fraud bot breaking a lot?", "platform_engineer", None, None),
+    ("P02", "is the fraud bot breaking a lot?", "platform_engineer", "answer", "agent_health"),
     ("P03", "should we renew the contract?", "finance", "answer", "renewal"),
 ]
 b = A.brain(refresh=True); print(f"Brain: {b['label']}  (NP_BRAIN={a.brain})\n")
@@ -36,8 +38,20 @@ for cid, q, per, exp_t, exp_i in cases:
     res.append(dict(id=cid, ok=ok, type=r["type"], intent=r["intent"], mode=r["mode"], q=q))
     print(f"{'PASS' if ok else 'FAIL'}  {cid:4} {r['type']:7} {r['intent']:11} [{r['mode']}]  {q}")
 g = [x for x in res if x["id"].startswith("Q")]
-print(f"\nGolden 21: {sum(x['ok'] for x in g)}/{len(g)}   All probes: {sum(x['ok'] for x in res)}/{len(res)}   "
-      f"({100 * sum(x['ok'] for x in res) / len(res):.0f}%)   {time.time() - t0:.1f}s")
-print("Note: P01/P02 are paraphrases with no fixed expected type; they pass if the answer cites metrics or a refusal offers a safe alternative.")
-if a.json: print(json.dumps(res, indent=1))
-sys.exit(0 if all(x["ok"] for x in g) else 1)
+p24, extra = PC.load()
+print("\nUnscripted probe set (tests/data/probes.json)")
+pr = {}
+for name, S in (("panel24", p24), ("extra", extra)):
+    out = []
+    for p in S:
+        ok, r, why = PC.grade(ag, p)
+        out.append(dict(id=p["id"], ok=ok, expect=p["expect"], type=r["type"], intent=r["intent"], mode=r["mode"], q=p["q"], why=why))
+        print(f"{'PASS' if ok else 'FAIL'}  {p['id']:4} {r['type']:7} {r['intent']:14} [{r['mode']}]  {p['q']}" + (f"   <- {why}" if why else ""))
+    pr[name] = out
+print(f"\nGolden 21: {sum(x['ok'] for x in g)}/{len(g)}   Guard+paraphrase probes: {sum(x['ok'] for x in res)}/{len(res)}   {time.time() - t0:.1f}s")
+for name, out in pr.items():
+    sa = [x for x in out if x["expect"] == "answer"]; f = [x for x in out if x["expect"] == "refuse"]
+    print(f"{name}: should-answer {sum(x['ok'] for x in sa)}/{len(sa)}, should-refuse {sum(x['ok'] for x in f)}/{len(f)}, total {sum(x['ok'] for x in out)}/{len(out)}")
+if a.json: print(json.dumps(dict(golden=res, probes=pr), indent=1))
+allp = [x for out in pr.values() for x in out]
+sys.exit(0 if all(x["ok"] for x in g) and all(x["ok"] for x in allp) else 1)
