@@ -234,7 +234,7 @@ Test (optional): `pip install playwright` and use a Chrome or Chromium binary, t
    - **Subdomain** (for example `adoption.example.com`): add a `CNAME` record from `adoption` to `<username>.github.io`.
    - **Apex** (for example `example.com`): add four `A` records pointing to `185.199.108.153`, `185.199.109.153`, `185.199.110.153` and `185.199.111.153`. Optionally add the AAAA records `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153` and `2606:50c0:8003::153`, plus a `CNAME` from `www` to `<username>.github.io`.
 4. Wait for DNS to propagate (minutes to hours), then tick **Enforce HTTPS**.
-5. Make the QR code: `pip install segno pillow && python tools/make_qr.py https://adoption.example.com --out assets`. The QR files in `assets/` now are **placeholders** for https://YOUR-DOMAIN.
+5. Make the QR code: `pip install segno pillow && python tools/make_qr.py https://adoption.example.com --out assets`. The QR files in `assets/` point to the GitHub Pages site, https://mohithraghava.github.io/nimbuspay-adoption-insights/.
 
 ### Alternatives
 - **Netlify:** drag the folder onto app.netlify.com/drop, or connect the repository with no build command and publish directory `.`. For a custom domain, go to Domain settings, then add a CNAME to `<site>.netlify.app` (or an apex `A` record to `75.2.60.5`, or use Netlify DNS).

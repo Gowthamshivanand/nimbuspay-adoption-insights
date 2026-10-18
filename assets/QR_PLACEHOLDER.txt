@@ -1,2 +1,0 @@
-This folder holds a PLACEHOLDER QR code for https://YOUR-DOMAIN.
-Regenerate it with the real URL before printing: python tools/make_qr.py https://your-real-domain --out assets
