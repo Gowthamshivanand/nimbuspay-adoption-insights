@@ -1,7 +1,7 @@
 # Playwright click-through: every scenario x persona x screen x golden question, plus guided demo.
-import sys
+import sys, pathlib
 from playwright.sync_api import sync_playwright
-U=sys.argv[1] if len(sys.argv)>1 else 'file:///workspace/hobby-project/prototype/index.html'
+U=sys.argv[1] if len(sys.argv)>1 else (pathlib.Path(__file__).resolve().parents[1]/'index.html').as_uri()
 O=sys.argv[2] if len(sys.argv)>2 else 'shots-final/'
 errs=[];res=[];ok=lambda n,c:res.append(('PASS ' if c else 'FAIL ')+n)
 with sync_playwright() as p:

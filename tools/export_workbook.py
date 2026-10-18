@@ -3,7 +3,9 @@ All rows are SYNTHETIC. Run once; the CSVs are committed so the app needs no wor
 Usage: python tools/export_workbook.py [path/to/workbook.xlsx]"""
 import csv, json, os, sys
 import openpyxl
-WB = sys.argv[1] if len(sys.argv) > 1 else "/workspace/hobby-project/fix/NimbusPay_Supporting_Workbook_v10.xlsx"
+ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+WB = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "NimbusPay_Supporting_Workbook_v10.xlsx")  # repo root; not committed
+if not os.path.exists(WB): sys.exit(f"Workbook not found: {WB} (pass its path as the first argument)")
 OUT = os.path.join(os.path.dirname(__file__), "..", "app", "data", "base")
 os.makedirs(OUT, exist_ok=True)
 wb = openpyxl.load_workbook(WB, data_only=True)
