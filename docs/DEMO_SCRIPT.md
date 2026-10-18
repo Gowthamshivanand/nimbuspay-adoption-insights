@@ -2,7 +2,7 @@
 
 All values are illustrative synthetic data, not NimbusPay figures. The story is the TPM one: *how it is built, how it fails safely, what it costs, how it ships*. The DPM views (executive, seats, renewal) are there as evidence, not as the main act.
 
-**Before you start:** run `python -m app` and open http://127.0.0.1:8000 in one tab, and `index.html` (or the GitHub Pages link) in a second tab. Leave the live app on the **Data** tab and the persona on **Executive**. Have `docs/demo.mp4` (91.6 s, silent, captioned) open in a video player as the backup, and `docs/demo_backup.mp4` (125.5 s) for the new agent features.
+**Before you start:** run `python -m app` and open http://127.0.0.1:8000 in one tab, and `index.html` (or the GitHub Pages link) in a second tab. Leave the live app on the **Data** tab and the persona on **Executive**. Have `docs/demo.mp4` (91.6 s, silent, captioned) open in a video player as the backup, and `docs/demo_backup.mp4` (125.4 s) for the new agent features.
 
 The agent's brain is whatever is running: with Ollama and `qwen2.5:3b-instruct` it shows "Open model: ... (local, Ollama)"; without it, or with `NP_BRAIN=rules`, it shows "Rules engine". **Both are fine.** Decide before you walk on which one you are demoing, and use the matching line in step 5.
 
@@ -26,7 +26,7 @@ The agent's brain is whatever is running: with Ollama and `qwen2.5:3b-instruct` 
 
 Say the test line exactly as written: "164 tests in CI plus a browser walkthrough, then the agent test gate". Don't round it to "165 in CI".
 
-Test count: the repo now has 193 tests in CI plus 2 browser walkthroughs (the new agent features added 29 API tests and a second walkthrough). The slide and this line still say 164; either keep it (it is an understatement, not a false claim) or update the slide and say "193 tests in CI plus two browser walkthroughs, then the agent test gate".
+Test count: the repo now has 232 tests in CI plus 2 browser walkthroughs (the new agent features added 29 API tests and a second walkthrough; the try-to-break-it set and Space tests added the rest). The slide and this line still say 164; either keep it (it is an understatement, not a false claim) or update the slide and say "232 tests in CI plus two browser walkthroughs, then the agent test gate".
 
 ## New agent beats (about 75 s; use after 1:55, or as extras if the panel asks)
 | Do | Say |
@@ -54,5 +54,5 @@ Test count: the repo now has 193 tests in CI plus 2 browser walkthroughs (the ne
 ## Re-recording the video
 `docs/demo.mp4` is a silent, headless Playwright capture of this flow (1280x720, 91.6 s), recorded against the rules brain on synthetic data. The recorder script is kept outside the repo, in the project workspace (`tools_rec/rec_tpm.py`); it expects the app on port 8765.
 
-`docs/demo_backup.mp4` (1280x720, 125.5 s, silent, captioned) is the backup for the **New agent beats** above, recorded the same way against the rules brain on the Baseline scenario. In order it shows: the Manager / Analyst / Guest role switch; Q01 streaming with the brain, latency and confidence tags (69.6%, M01 v1.0); the follow-up "and Region B?" (75.0%); "what about last month?" (one closed period, nothing invented); the Why-this-number panel; a clarifying question ("Is the agent saving time?") and its answer after picking the fraud agent; the same question asked as Guest (denied by default); Analyst seeing Region A only (60.0%) and a refused Region B follow-up (permissions never carried); a thumbs-down saved locally; the Models screen (rules 21/21, 0 unsafe answers; stock and fine-tuned "not available"). Recorder: `tools_rec/rec_backup.py` in the project workspace (it starts its own server on port 8766).
+`docs/demo_backup.mp4` (1280x720, 125.4 s, silent, captioned) is the backup for the **New agent beats** above, recorded the same way against the rules brain on the Baseline scenario. In order it shows: the Manager / Analyst / Guest role switch; Q01 streaming with the brain, latency and confidence tags (69.6%, M01 v1.0); the follow-up "and Region B?" (75.0%); "what about last month?" (one closed period, nothing invented); the Why-this-number panel; a clarifying question ("Is the agent saving time?") and its answer after picking the fraud agent; the same question asked as Guest (denied by default); Analyst seeing Region A only (60.0%) and a refused Region B follow-up (permissions never carried); a thumbs-down saved locally; the Models screen (rules 21/21, 0 unsafe answers; stock and fine-tuned "not available"). Recorder: `tools_rec/rec_backup.py` in the project workspace (it starts its own server on port 8766).
 
