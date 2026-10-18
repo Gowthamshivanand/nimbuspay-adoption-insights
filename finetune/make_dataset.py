@@ -397,6 +397,125 @@ def main():
     stats["v3_train_rows"] = len(v3)
     train = train + v3; rng3.shuffle(train)
 
+    # ---- v4 (before Colab run 2): realistic diversity, hard contrast pairs, fresh-wording test, near-duplicate cap,
+    # final guard audit. Own RNG, appended after v3, so the run-1 test rows stay byte-for-byte unchanged. ----
+    import templates_v4 as V4
+    from fresh_test_en import FRESH_TEST
+    rng4 = random.Random(SEED + 4)
+    def spec(lab):
+        """templates_v4 label spec -> (label, args): 'm01', ('m01','Region B'), ('agent_health','AG-KYC-04'), ('outcome','M08')."""
+        if isinstance(lab, tuple):
+            t, x = lab
+            return t, ({"region": x} if x.startswith("Region") else {"agent": x} if x.startswith("AG-") else {"metric": x})
+        return lab, {}
+    def slang(q, r):
+        q2 = q.rstrip("?.!") if r.random() < 0.5 else q
+        return (r.choice(V4.SLANG_PRE) if r.random() < 0.7 else "") + q2 + (r.choice(V4.SLANG_SUF) if r.random() < 0.6 else "")
+    def v4_variants(q, k):
+        out = variants(q, max(1, k - 1), rng4)
+        if k > 1:
+            s = slang(q, rng4)
+            if rng4.random() < 0.5: s = typo(s, rng4)
+            if norm(s) not in {norm(x) for x, _ in out}: out.append((s, "slang"))
+        return out
+    add4, add4_test = [], []
+    def gen4(q0, lab, source, k, personas=None, prev=None):
+        label, args = spec(lab)
+        for _ in range(max(1, k // 3)):
+            persona = rng4.choice(personas or PERSONAS)
+            if label == "m01" and args.get("region", "Region A") != "Region A" and persona in SCOPED: persona = "executive"
+            for v, style in v4_variants(q0, 3 if k >= 3 else 1):
+                t, a, why = label_for(v, label, args, persona)
+                if why: stats["v4_relabelled_" + why.split(":")[0]] += 1
+                add4.append(route_rec(v, persona, t, a, "trainval", "v4_" + source, style, prev=prev))
+    for lab, (tr_al, _) in V4.METRIC_ALIASES.items():
+        for a in tr_al:
+            for f in rng4.sample(V4.FRAMES_TRAIN, 4): gen4(f.replace("{a}", a), lab, "alias", 3)
+    for m, (tr_al, _) in V4.OUTCOME_ALIASES.items():
+        for a in tr_al:
+            for f in rng4.sample(V4.FRAMES_TRAIN, 4): gen4(f.replace("{a}", a), ("outcome", m), "alias", 3)
+    for aid, (tr_al, _) in V4.AGENT_ALIASES.items():
+        for a in tr_al:
+            for tool, frames in V4.AGENT_FRAMES_TRAIN.items():
+                for f in rng4.sample(frames, 2): gen4(f.replace("{agent}", a), (tool, aid), "agent_alias", 3)
+    for q in V4.VAGUE_NONE: gen4(q, "none", "vague", 6)
+    for q in V4.CLARIFY_AGENT: gen4(q, "none:agent", "clarify", 6, personas=[p for p in PERSONAS])
+    for q in V4.CLARIFY_TOPIC: gen4(q, "none:topic", "clarify", 6)
+    for q in V4.CLAIMS_NONE: gen4(q, "none", "claim", 6)
+    for q, lab in V4.CLAIMS_TOOL: gen4(q, lab, "claim", 6)
+    for q, lab in V4.HTML_QS + V4.HTML_UNSAFE:
+        for w in rng4.sample(V4.HTML_WRAPS, 3): gen4(w.replace("{q}", q), lab, "html", 1)
+    for bad, bl, good, gl in V4.CONTRAST:
+        gen4(bad, bl, "contrast_unsafe" if bl.startswith("refuse") else "contrast_vague", 9); gen4(good, gl, "contrast_safe", 9)
+    for (bad, good), gl in zip(V4.SCOPE_CONTRAST, V4.SCOPE_SAFE_LABELS):
+        for reg in ("Region B", "Region C"):
+            for ref in REGION_REFS[reg][:2]:
+                gen4(bad.replace("{other_region}", ref), "refuse:scope", "contrast_scope", 3, personas=sorted(SCOPED))
+        gen4(good, gl, "contrast_scope_safe", 6, personas=sorted(SCOPED))
+    for q, lab in V4.COMPOUND: gen4(q, lab, "compound", 6)
+    # fresh-wording held-out test (test only)
+    for q, lab, per, prev in FRESH_TEST:
+        label, args = spec(lab); persona = per or rng4.choice(["executive", "manager", "finance", "platform_engineer"])
+        t, a, why = label_for(q, label, args, persona)
+        if why: stats["fresh_relabelled_" + why.split(":")[0]] += 1
+        add4_test.append(route_rec(q, persona, t, a, "test", "fresh_wording", "fresh", prev=prev))
+    tk = {norm(r["question"]) + "|" + str(r["previous"]) for r in test}
+    for r in add4_test:
+        k = norm(r["question"]) + "|" + str(r["previous"])
+        if k in tk: stats["fresh_dup_skipped"] += 1; continue
+        tk.add(k); test.append(r)
+    fresh_norm = [set(norm(r["question"]).split()) for r in add4_test]
+    gate_norm = [set(norm(q).split()) for _, q, *_ in held]
+    near = lambda w, pool: any(len(w & h) / max(1, len(w | h)) >= 0.8 for h in pool)
+    v4rows = []; seen4 = {norm(r["question"]) + "|" + str(r["previous"]) + r["persona"] for r in train + val}
+    for r in add4:
+        key = norm(r["question"]) + "|" + str(r["previous"]); w = set(norm(r["question"]).split())
+        if key in tk or norm(r["question"]) in banned: stats["v4_dropped_equal_to_test"] += 1; continue
+        if near(w, hard_norm + pub_eval_norm + fresh_norm + gate_norm): stats["v4_dropped_near_heldout"] += 1; continue
+        if key + r["persona"] in seen4: stats["v4_dropped_dup"] += 1; continue
+        seen4.add(key + r["persona"]); v4rows.append(r)
+    rng4.shuffle(v4rows)
+    n_v4_val = len(v4rows) // 10              # 10% of v4 rows go to val so early stopping sees the new categories
+    val = val + [dict(r, split="val") for r in v4rows[:n_v4_val]]
+    train = train + [dict(r, split="train") for r in v4rows[n_v4_val:]]
+    stats["v4_train_rows"] = len(v4rows) - n_v4_val; stats["v4_val_rows"] = n_v4_val
+    def far_from_fresh(rows, tag):
+        out = []
+        for r in rows:
+            if r["task"] == "route" and near(set(norm(r["question"]).split()), fresh_norm): stats[tag] += 1; continue
+            out.append(r)
+        return out
+    train = far_from_fresh(train, "dropped_train_near_fresh"); val = far_from_fresh(val, "dropped_val_near_fresh")
+
+    # near-duplicate cap on train route rows (template overfit, run-1 val loss 0.0027): same normalised text across personas
+    # kept at most twice; within a label, rows whose word+bigram set is >= 0.7 similar to 3 already-kept rows are dropped.
+    def bigr(q):
+        w = norm(q).split(); return set(zip(w, w[1:])) | set(w)
+    kept, by_text, clusters = [], Counter(), {}
+    for r in train:
+        if r["task"] != "route" or r["previous"]: kept.append(r); continue
+        nt = norm(r["question"])
+        if by_text[nt] >= 2: stats["dedupe_dropped_same_text"] += 1; continue
+        b = bigr(r["question"]); lk = label_key(r); pool = clusters.setdefault(lk, [])
+        hits = 0
+        for kb in pool:
+            if len(b & kb) / max(1, len(b | kb)) >= 0.7:
+                hits += 1
+                if hits >= 3: break
+        if hits >= 3: stats["dedupe_dropped_near_dup"] += 1; continue
+        by_text[nt] += 1; pool.append(b); kept.append(r)
+    train = kept; rng4.shuffle(train)
+
+    # final label audit (code is the authority): any train/val route row a guard refuses must carry that refusal
+    for rows in (train, val):
+        for i, r in enumerate(rows):
+            if r["task"] != "route": continue
+            g = wb.guards(r["question"], A.resolve_persona(r["persona"]))
+            if g and (r["label"], r["args"].get("reason")) != ("refuse", g["intent"]):
+                stats["audit_fixed_guard_conflict"] += 1
+                rows[i] = route_rec(r["question"], r["persona"], "refuse", {"reason": g["intent"]}, r["split"], r["source"], r["style"], prev=r["previous"],
+                                    extra={k: v for k, v in r.items() if k in ("outcome", "outcome_intent")})
+
     os.makedirs(OUT, exist_ok=True)
     for name, rows in (("train", train), ("val", val), ("test", test)):
         with open(os.path.join(OUT, name + ".jsonl"), "w", encoding="utf-8") as f:

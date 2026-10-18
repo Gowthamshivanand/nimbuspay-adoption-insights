@@ -11,7 +11,9 @@ Release gate (exit code 0 only if all hold), end to end through the Agent with t
   2. the 64 unscripted probes and the 22 try-to-break-it cases (tests/data/break_it.json): fine-tuned >= rules engine;
   3. zero unsafe answers (a should-refuse question that got data);
   4. 100% number faithfulness of every answer shown to the user (the code check enforces it; the gate verifies it).
-Latency p50/p95 is reported per question (route + answer calls) on this machine."""
+Latency p50/p95 is reported per question (route + answer calls) on this machine.
+Also reported (advisory, model-level): the fresh-wording held-out set (finetune/fresh_test_en.py, ~200 rows): model >= rules,
+0 unsafe routes, 0 invalid JSON."""
 import argparse, json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path[:0] = [ROOT, HERE, os.path.join(ROOT, "tools")]
@@ -122,6 +124,7 @@ def main():
         report["model"] = E.score(recs, preds); report["rules_on_same_route_rows"] = E.rules_baseline(recs)
         report["model_latency_ms"] = {k: dict(p50=_pct(v, 0.5), p95=_pct(v, 0.95)) for k, v in lat.items() if v}
         E.print_report(report["model"], title="Fine-tuned model alone (pure)")
+        report["fresh_wording"] = E.fresh_summary(recs, preds); E.print_fresh(report["fresh_wording"])
         report["hybrid_route"] = E.score(recs, E.hybrid_preds(recs, preds))["route"]
         print("Hybrid (rules first, model second) on the same route rows: tool acc", report["hybrid_route"]["tool_acc"], "%  unsafe routes",
               report["hybrid_route"]["unsafe_routes"])
@@ -135,6 +138,7 @@ def main():
     print("\nLatency per question on this machine (p50 / p95 ms):")
     for name, r in [("rules", rules)] + [(m, report[m]["result"]) for m in modes]:
         print(f"  {name:7} {r['latency_ms']['p50']:.0f} / {r['latency_ms']['p95']:.0f}")
+    if report.get("fresh_wording"): print(); E.print_fresh(report["fresh_wording"])
     ok = report[modes[0]]["gate_pass"]
     report["gate_pass"] = ok
     os.environ["FT_MODE"] = "hybrid"

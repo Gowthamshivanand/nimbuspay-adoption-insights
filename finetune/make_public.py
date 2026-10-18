@@ -8,7 +8,9 @@ Option B: public questions are put under OUR fixed tool list and route prompt, n
   * FeTaQA -> ANSWER task in our "governed draft + SQL rows" format; kept only if every number in the answer is in the rows;
   * smol-smoltalk -> short general chats (replay against forgetting), trained as-is.
 The code guards stay authoritative: if a guard refuses a public question, its label is that guard's reason.
-'none' is capped at ~25% of all routing rows (synthetic + public) by trimming the none-labelled public sources evenly."""
+'none' is capped at ~25% of all routing rows (synthetic + public) by trimming the none-labelled public sources evenly.
+v4 (before run 2): FeTaQA is dropped by default (off-domain Wikipedia tables, e.g. film / sports lists, diluted the governed answer
+format and made the combined file ShareAlike) and smol-smoltalk replay is capped at SMOL_CAP rows. Re-enable with NP_PUBLIC_FETAQA=1."""
 import json, os, random, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE); sys.path[:0] = [ROOT, HERE]
 from app import finetuned as FT
@@ -16,6 +18,7 @@ import make_dataset as MD
 from fetch_public import SOURCES, CACHE, SEED
 from hard_test_en import HARD_TEST
 DATA = os.path.join(HERE, "data"); NONE_CAP = 0.25
+USE_FETAQA = os.environ.get("NP_PUBLIC_FETAQA") == "1"; SMOL_CAP = 250; PUBLIC_NONE_MAX = 800   # v4: public 'none' rows capped so they don't dilute the synthetic mix
 NONE_SRC = ["when2call", "xlam_irrelevance", "clinc_oos", "glaive_fc_v2", "or_bench"]
 REFUSE_SRC = {"deepset_injections": "injection", "gandalf": "injection", "aegis2": "harmful"}
 ATTRIB = {
@@ -55,7 +58,7 @@ def main():
     train = [json.loads(l) for l in open(os.path.join(DATA, "train.jsonl"), encoding="utf-8")]
     banned = {MD.norm(r["question"]) for r in test} | {MD.norm(h[1]) for h in HARD_TEST}
     banned |= {MD.norm(r["question"]) for r in train}
-    hard = [set(MD.norm(h[1]).split()) for h in HARD_TEST]
+    hard = [set(MD.norm(h[1]).split()) for h in HARD_TEST] + [set(MD.norm(r["question"]).split()) for r in test if r["source"] == "fresh_wording"]
     personas = [p for p in MD.PERSONAS]
     stats = dict(skipped_sources=[n for n in SOURCES if n not in man], dropped_overlap=0, relabelled_by_guard=0)
 
@@ -90,14 +93,15 @@ def main():
     avail = {n: load(n) or [] for n in NONE_SRC}
     total_avail = sum(len(v) for v in avail.values())
     n_max = int((NONE_CAP * (len(syn_route) + pub_ref) - syn_none - pub_none_ref) / (1 - NONE_CAP))
+    n_max = min(n_max, PUBLIC_NONE_MAX)
     frac = max(0.0, min(1.0, n_max / max(1, total_avail)))
     stats["none_cap"] = dict(cap=NONE_CAP, synthetic_none=syn_none, public_none_requested=total_avail, public_none_allowed=n_max, kept_fraction=round(frac, 3))
     for name in NONE_SRC:
         for x in avail[name][:int(len(avail[name]) * frac)]:
             add(out, name, route_row(name, x["q"], "none", "train"), "train")
-    for x in load("fetaqa") or []:
+    for x in (load("fetaqa") or []) if USE_FETAQA else []:
         add(out, "fetaqa", fetaqa_rec(x), "train")
-    for x in load("smol_smoltalk") or []:
+    for x in (load("smol_smoltalk") or [])[:SMOL_CAP]:
         add(out, "smol_smoltalk", dict(task="chat", persona=None, question=x["messages"][0]["content"], previous=None, label="chat", args={},
                                        messages=x["messages"]), "train")
     # eval-only file (never trained on)
@@ -119,7 +123,7 @@ def main():
                  eval=dict(total=len(evalrows), by_source=dict(Counter(r["source"].split(":")[1] for r in evalrows)), by_label=dict(Counter(lab(r) for r in evalrows))),
                  none_share_of_routing=round(sum(r["label"] == "none" for r in allroute) / len(allroute), 3),
                  sources={n: dict(m, attribution=ATTRIB.get(n)) for n, m in man.items()},
-                 licence_of_public_train="CC-BY-SA-4.0 (combined file inherits ShareAlike from FeTaQA); each row keeps its own licence + attribution",
+                 licence_of_public_train=("CC-BY-SA-4.0 (combined file inherits ShareAlike from FeTaQA)" if USE_FETAQA else "mixed permissive (CC-BY-4.0, CC-BY-3.0, Apache-2.0, MIT; no ShareAlike source in v4)") + "; each row keeps its own licence + attribution",
                  sizes_bytes={f: os.path.getsize(os.path.join(DATA, f)) for f in ("public_train.jsonl", "public_eval.jsonl")})
     sp = os.path.join(DATA, "stats.json"); st = json.load(open(sp)); st["public"] = stats; json.dump(st, open(sp, "w"), indent=1)
     print(json.dumps({k: stats[k] for k in ("train", "eval", "none_cap", "none_share_of_routing", "dropped_overlap", "relabelled_by_guard", "skipped_sources", "sizes_bytes")}, indent=1))

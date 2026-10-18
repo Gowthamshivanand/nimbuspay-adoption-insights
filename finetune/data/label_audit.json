@@ -1,0 +1,422 @@
+{
+ "counts": {
+  "train": {
+   "model_only_refusal:causal": 70,
+   "model_only_refusal:forecast": 61,
+   "model_only_refusal:individual": 108,
+   "model_only_refusal:injection": 102,
+   "model_only_refusal:pii": 60,
+   "model_only_refusal:scope": 38,
+   "model_only_refusal:small_group": 47,
+   "model_only_refusal:ungoverned": 52,
+   "model_only_refusal:write": 222,
+   "route_rows": 8146,
+   "rules_confident_disagree": 64
+  },
+  "val": {
+   "model_only_refusal:causal": 6,
+   "model_only_refusal:forecast": 8,
+   "model_only_refusal:individual": 17,
+   "model_only_refusal:injection": 8,
+   "model_only_refusal:pii": 5,
+   "model_only_refusal:scope": 2,
+   "model_only_refusal:small_group": 8,
+   "model_only_refusal:ungoverned": 7,
+   "model_only_refusal:write": 21,
+   "route_rows": 736,
+   "rules_confident_disagree": 10
+  },
+  "test": {
+   "model_only_refusal:causal": 17,
+   "model_only_refusal:forecast": 17,
+   "model_only_refusal:individual": 15,
+   "model_only_refusal:injection": 15,
+   "model_only_refusal:pii": 20,
+   "model_only_refusal:scope": 8,
+   "model_only_refusal:small_group": 11,
+   "model_only_refusal:ungoverned": 13,
+   "model_only_refusal:write": 26,
+   "route_rows": 1025,
+   "rules_confident_disagree": 27
+  },
+  "public_train": {
+   "model_only_refusal:injection": 166,
+   "model_only_refusal:pii": 6,
+   "route_rows": 1243
+  }
+ },
+ "hard_contradictions": {
+  "train": {},
+  "val": {},
+  "test": {},
+  "public_train": {}
+ },
+ "examples": {
+  "train:rules_confident_disagree": [
+   {
+    "id": "train-00004",
+    "q": "is the X9 drag-and-drop bot worh keeping",
+    "persona": "analyst",
+    "gold": "agent_value",
+    "source": "v4_agent_alias",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-00081",
+    "q": "question: how are da KYC checker and da summariser doing? thanks",
+    "persona": "executive",
+    "gold": "reliability",
+    "source": "template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-00519",
+    "q": "How are the KYC checker and the summariser doing?",
+    "persona": "executive",
+    "gold": "reliability",
+    "source": "template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-00697",
+    "q": "sorry, dumb q: is the X9 agent registered - pls revert",
+    "persona": "finance",
+    "gold": "m16",
+    "source": "v4_contrast_safe",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-00873",
+    "q": "is utilisation higher where connectors fail less?",
+    "persona": "platform_engineer",
+    "gold": "why_drop",
+    "source": "template",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "train-00879",
+    "q": "question: how are the KYC checker and the summariser doing for the board",
+    "persona": "analyst",
+    "gold": "reliability",
+    "source": "template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-01007",
+    "q": "real quick, what's our value score and why is it low??",
+    "persona": "executive",
+    "gold": "why_low",
+    "source": "multipart",
+    "rules": "why_drop",
+    "conf": 0.95
+   },
+   {
+    "id": "train-01039",
+    "q": "---------- Forwarded message ----------\nSubject: AI adoption\n\nHi,\nis utilisation higher where connectors fail less thanks\n\nRegards,\nFinance team",
+    "persona": "executive",
+    "gold": "why_drop",
+    "source": "long_noisy",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "train-01094",
+    "q": "What vlue does AG-FRAUD-01 bring",
+    "persona": "finance",
+    "gold": "agent_value",
+    "source": "template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-01169",
+    "q": "Is utilisation higher where connectors fail less?",
+    "persona": "fraud_ops_lead",
+    "gold": "why_drop",
+    "source": "template",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "train-01309",
+    "q": "is the KYC checker pulling its weight pls",
+    "persona": "platform_engineer",
+    "gold": "agent_value",
+    "source": "indirect",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-01570",
+    "q": "so Is utilisation higher where connectors fail less thanks",
+    "persona": "fraud_ops_lead",
+    "gold": "why_drop",
+    "source": "template",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "train-02022",
+    "q": "is the X9 agent registered",
+    "persona": "analyst",
+    "gold": "m16",
+    "source": "v4_contrast_safe",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-02613",
+    "q": "quiick one: is the x9 agent registered thansk",
+    "persona": "fraud_ops_lead",
+    "gold": "m16",
+    "source": "v4_contrast_safe",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "train-02762",
+    "q": "sorry, dumb q: is the X9 agent registered asap",
+    "persona": "fraud_ops_lead",
+    "gold": "m16",
+    "source": "v4_contrast_safe",
+    "rules": "agent_health",
+    "conf": 0.9
+   }
+  ],
+  "val:rules_confident_disagree": [
+   {
+    "id": "val-00003",
+    "q": "is low usage linked to connector failures?",
+    "persona": "finance",
+    "gold": "why_drop",
+    "source": "template",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "val-00004",
+    "q": "is AG-DND-X9 payibg off",
+    "persona": "platform_engineer",
+    "gold": "agent_value",
+    "source": "template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "val-00060",
+    "q": "quick one: what's our value score and why is it low thanks",
+    "persona": "executive",
+    "gold": "why_low",
+    "source": "multipart",
+    "rules": "why_drop",
+    "conf": 0.95
+   },
+   {
+    "id": "val-00166",
+    "q": "can you tell me how are da KYC checker and da summariser doing pls",
+    "persona": "regional_lead",
+    "gold": "reliability",
+    "source": "template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "val-00207",
+    "q": "i was wondering, how are the KYC checker and the summariser doing thanks",
+    "persona": "analyst",
+    "gold": "reliability",
+    "source": "template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "val-00307",
+    "q": "is low usage linked to connector failures?",
+    "persona": "regional_lead",
+    "gold": "why_drop",
+    "source": "template",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "val-00394",
+    "q": "does the kyc agent svae us timme",
+    "persona": "platform_engineer",
+    "gold": "agent_value",
+    "source": "template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "val-00445",
+    "q": "real quick, is low usage linked to connector failures? please",
+    "persona": "regional_lead",
+    "gold": "why_drop",
+    "source": "template",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "val-00595",
+    "q": "is summariser aget 3 wotrh keeping",
+    "persona": "platform_engineer",
+    "gold": "agent_value",
+    "source": "v4_agent_alias",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "val-00811",
+    "q": "ok so why is the vslue scoore low",
+    "persona": "manager",
+    "gold": "why_low",
+    "source": "v4_contrast_safe",
+    "rules": "why_drop",
+    "conf": 0.95
+   }
+  ],
+  "test:rules_confident_disagree": [
+   {
+    "id": "test-00125",
+    "q": "Do the fraud folks' bot actually pay its way?",
+    "persona": "fraud_ops_lead",
+    "gold": "agent_value",
+    "source": "hard_test",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "test-00228",
+    "q": "Do markets with more connector errors use it less?",
+    "persona": "regional_lead",
+    "gold": "why_drop",
+    "source": "heldout_template",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "test-00230",
+    "q": "Do markets with more connector errors use it less? please",
+    "persona": "regional_lead",
+    "gold": "why_drop",
+    "source": "heldout_template",
+    "rules": "m11",
+    "conf": 0.95
+   },
+   {
+    "id": "test-00324",
+    "q": "is the summariser earning its keep",
+    "persona": "platform_engineer",
+    "gold": "agent_value",
+    "source": "heldout_template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "test-00325",
+    "q": "real quick, is the summariser earing its keep for the board",
+    "persona": "platform_engineer",
+    "gold": "agent_value",
+    "source": "heldout_template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "test-00326",
+    "q": "is the summariser earning its keep this period",
+    "persona": "platform_engineer",
+    "gold": "agent_value",
+    "source": "heldout_template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "test-00330",
+    "q": "Is the merchant onboarding copilot worth it?",
+    "persona": "executive",
+    "gold": "agent_value",
+    "source": "new_alias",
+    "rules": "outcome",
+    "conf": 0.95
+   },
+   {
+    "id": "test-00331",
+    "q": "pls tell me Is the merchant onboarding copilot worth it",
+    "persona": "executive",
+    "gold": "agent_value",
+    "source": "new_alias",
+    "rules": "outcome",
+    "conf": 0.95
+   },
+   {
+    "id": "test-00332",
+    "q": "hey, is the merchant onboarding copilot worth it plase",
+    "persona": "executive",
+    "gold": "agent_value",
+    "source": "new_alias",
+    "rules": "outcome",
+    "conf": 0.95
+   },
+   {
+    "id": "test-00336",
+    "q": "Does the merchant onboarding copilot save us time",
+    "persona": "analyst",
+    "gold": "agent_value",
+    "source": "new_alias",
+    "rules": "outcome",
+    "conf": 0.95
+   },
+   {
+    "id": "test-00338",
+    "q": "pls tell me Does the merchant onboarding copilot save us time??",
+    "persona": "analyst",
+    "gold": "agent_value",
+    "source": "new_alias",
+    "rules": "outcome",
+    "conf": 0.95
+   },
+   {
+    "id": "test-00357",
+    "q": "does the summariser get more use than the onboarding bot?",
+    "persona": "fraud_ops_lead",
+    "gold": "agent_usage",
+    "source": "heldout_template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "test-00358",
+    "q": "ok does the summariser get more use than the onboarding bot",
+    "persona": "fraud_ops_lead",
+    "gold": "agent_usage",
+    "source": "heldout_template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "test-00359",
+    "q": "hey, does the summariser get more use than the onboarding bot thanks",
+    "persona": "fraud_ops_lead",
+    "gold": "agent_usage",
+    "source": "heldout_template",
+    "rules": "agent_health",
+    "conf": 0.9
+   },
+   {
+    "id": "test-00567",
+    "q": "is the onboarding assistant earning its seat cost?",
+    "persona": "manager",
+    "gold": "agent_value",
+    "source": "heldout_indirect",
+    "rules": "agent_health",
+    "conf": 0.9
+   }
+  ]
+ }
+}

@@ -16,7 +16,7 @@ Synthetic hobby case study. The NimbusPay data is synthetic and English only. Wi
 
 The app keeps the safety architecture: code guards run first, the JSON is schema-checked, every number in an answer must be in the governed result, and anything that fails falls back to the rules engine.
 
-**How to run:** `Runtime > Change runtime type > T4 GPU`, then `Runtime > Run all`. Training time is estimated, not measured (run 1 did not log it; this run records `train_minutes` in the report): 7,270 synthetic + 2,892 public rows is ~3.2M tokens per epoch, about 20% more than run 1, so 1.5B with 2 epochs is roughly 55 to 105 minutes on a T4 (set `EPOCHS = 1` to about halve it, or `USE_PUBLIC = False` to cut ~a quarter).\n\n**Run 2 = retrain from base.** The notebook always starts from the base model with a fresh LoRA. Resuming the run-1 adapter is not offered on purpose: the data mix changed, a resumed run would need its own LR schedule, and a fresh 2-epoch run is simpler and reproducible. Just `Run all` again with the defaults. At the end you get a GGUF file and an Ollama `Modelfile`.
+**How to run:** `Runtime > Change runtime type > T4 GPU`, then `Runtime > Run all`. Run 2 (v4 data): 9,195 synthetic + 1,493 public rows (FeTaQA dropped, smol-smoltalk capped) = about 668 steps per epoch. Run 1 measured 1,084 steps in 88.4 min (~4.9 s/step), so training is **capped at `TIME_BUDGET_MIN = 88` minutes** (~1,050-1,100 steps, about 1.6 epochs) with **early stopping on validation loss** (eval every 100 steps, best checkpoint restored). Whole notebook: about 100-110 min (installs ~5, training <=88, test + gate ~8, GGUF export ~6).
 """)
 md("## 1. Settings (the model switch is here)")
 code(r'''
@@ -35,7 +35,11 @@ BASE_MODEL = {"1.5B": "Qwen/Qwen2.5-1.5B-Instruct", "7B": "Qwen/Qwen2.5-7B-Instr
 if SMOKE: BASE_MODEL = os.environ.get("NP_SMOKE_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
 QLORA = MODEL_CHOICE == "7B" and not SMOKE
 EPOCHS = EPOCHS or (2 if MODEL_CHOICE == "1.5B" else 1)
-LR, LORA_R, LORA_ALPHA, LORA_DROPOUT, MAX_LEN = 2e-4, 16, 32, 0.05, 768
+LR, LORA_R, LORA_ALPHA, LORA_DROPOUT, MAX_LEN = 2e-4, 16, 32, 0.1, 768   # v4: dropout 0.05 -> 0.1 (run 1 val loss 0.0027 = template overfit)
+TIME_BUDGET_MIN = 88      # hard stop for training (run 1: 1,084 steps = 88.4 min on a T4); the best checkpoint so far is kept
+EVAL_EVERY = 100          # eval on validation loss every N steps; checkpoints saved at the same steps
+EARLY_STOP_PATIENCE = 3   # stop after 3 evals (300 steps) without a better validation loss
+VAL_EVAL_ROWS = 400       # fixed random subset of val used during training (keeps each eval ~30 s)
 BATCH, GRAD_ACC = (2, 1) if SMOKE else ((4, 4) if not QLORA else (2, 8))
 MAX_STEPS = 20 if SMOKE else -1
 WORK = os.environ.get("NP_WORK", "/content" if os.path.isdir("/content") else os.path.abspath("ft_work"))
@@ -149,16 +153,31 @@ steps_per_epoch = max(1, len(train_enc) // (BATCH * GRAD_ACC))
 total = MAX_STEPS if MAX_STEPS > 0 else steps_per_epoch * EPOCHS
 kw = dict(output_dir=os.path.join(WORK, "ckpt"), per_device_train_batch_size=BATCH, per_device_eval_batch_size=BATCH,
           gradient_accumulation_steps=GRAD_ACC, num_train_epochs=EPOCHS, max_steps=MAX_STEPS, learning_rate=LR,
-          lr_scheduler_type="cosine", warmup_steps=max(1, int(0.03 * total)), weight_decay=0.0, logging_steps=5 if SMOKE else 10,
-          eval_strategy="steps", eval_steps=10 if SMOKE else max(20, total // 6), save_strategy="no", report_to="none",
+          lr_scheduler_type="cosine", warmup_steps=max(1, int(0.03 * total)), weight_decay=0.01, logging_steps=5 if SMOKE else 10,
+          eval_strategy="steps", eval_steps=10 if SMOKE else EVAL_EVERY, save_strategy="steps", save_steps=10 if SMOKE else EVAL_EVERY,
+          save_total_limit=2, load_best_model_at_end=True, metric_for_best_model="eval_loss", greater_is_better=False, report_to="none",
           fp16=use_cuda, remove_unused_columns=False, dataloader_num_workers=0, seed=7, use_cpu=not use_cuda)
 sig = inspect.signature(TrainingArguments.__init__).parameters
 if "train_sampling_strategy" in sig: kw["train_sampling_strategy"] = "group_by_length"   # transformers 5
 elif "group_by_length" in sig: kw["group_by_length"] = True
 args = TrainingArguments(**{k: v for k, v in kw.items() if k in sig})
-trainer = Trainer(model=model, args=args, train_dataset=train_enc, eval_dataset=val_enc, data_collator=Collate())
+from transformers import EarlyStoppingCallback, TrainerCallback
+class TimeBudget(TrainerCallback):
+    """Stop cleanly once TIME_BUDGET_MIN is used; an eval + save is forced first so the best checkpoint is restored at the end."""
+    def on_train_begin(self, a, state, control, **k): self.t0 = time.time(); self.hit = False
+    def on_step_end(self, a, state, control, **k):
+        if not self.hit and (time.time() - self.t0) / 60 >= TIME_BUDGET_MIN:
+            self.hit = True; control.should_evaluate = True; control.should_save = True; control.should_training_stop = True
+        return control
+import random as _r
+val_eval = _r.Random(3).sample(val_enc, min(VAL_EVAL_ROWS, len(val_enc)))
+budget = TimeBudget()
+trainer = Trainer(model=model, args=args, train_dataset=train_enc, eval_dataset=val_eval, data_collator=Collate(),
+                  callbacks=[EarlyStoppingCallback(early_stopping_patience=EARLY_STOP_PATIENCE), budget])
 t0 = time.time(); out = trainer.train(); TRAIN_MIN = (time.time() - t0) / 60
-print(f"trained {out.global_step} steps in {TRAIN_MIN:.1f} min, final train loss {out.training_loss:.4f}")
+STOP_REASON = "time budget" if budget.hit else ("early stopping" if out.global_step < total else "all epochs")
+print(f"trained {out.global_step}/{total} steps in {TRAIN_MIN:.1f} min ({STOP_REASON}), final train loss {out.training_loss:.4f}")
+print("best checkpoint:", trainer.state.best_model_checkpoint, "best val loss:", trainer.state.best_metric)
 print("eval:", trainer.evaluate())
 ADAPTER_DIR = os.path.join(WORK, "adapter"); model.save_pretrained(ADAPTER_DIR); tok.save_pretrained(ADAPTER_DIR)
 ''')
@@ -184,9 +203,11 @@ print(f"generated {len(test)} in {time.time() - t0:.0f}s")
 pub_preds = []
 for s in range(0, len(public_eval), B): pub_preds += generate_batch([r["messages"][:-1] for r in public_eval[s:s + B]], MAXNEW["route"])
 REPORT = dict(base_model=BASE_MODEL, qlora=QLORA, epochs=EPOCHS, train_rows=len(train), use_public=USE_PUBLIC, smoke=SMOKE,
-              train_minutes=round(TRAIN_MIN, 1), train_tokens=sum(lens), model=E.score(test, preds),
+              train_minutes=round(TRAIN_MIN, 1), train_tokens=sum(lens), train_steps=out.global_step, planned_steps=total, stop_reason=STOP_REASON,
+              best_val_loss=trainer.state.best_metric, model=E.score(test, preds),
               rules_on_same_route_rows=E.rules_baseline(test), public_eval=E.score(public_eval, pub_preds)["route"])
 E.print_report(REPORT["model"])
+REPORT["fresh_wording"] = E.fresh_summary(test, preds); E.print_fresh(REPORT["fresh_wording"])
 pe = REPORT["public_eval"]; print(f"\nPublic eval-only set (XSTest / When2Call / CLINC, n={pe['n']}): tool acc {pe['tool_acc']}%, refusal recall {pe['refusal_recall']}%, over-refusals {pe['over_refusals']}")
 REPORT["hybrid_route"] = E.score(test, E.hybrid_preds(test, preds))["route"]
 print("\nHybrid (default app mode: guards, confident rules match, model for the rest): tool acc", REPORT["hybrid_route"]["tool_acc"],
@@ -200,9 +221,11 @@ import eval_finetuned as EF
 FT.FT_GENERATE = lambda messages, kind: generate_batch([messages], MAXNEW[kind])[0]   # plug this model into the app's finetuned brain
 os.environ["FT_ANSWER"] = "0"                # app default: the model routes, the governed template writes the text
 rules = EF.run_suite("rules"); ft = EF.run_suite("finetuned", "hybrid"); ft_pure = EF.run_suite("finetuned", "pure")
-GATE_PASS = EF.print_gate(ft, rules); EF.print_gate(ft_pure, rules)
+GATE_PASS = EF.print_gate(ft, rules); GATE_PURE = EF.print_gate(ft_pure, rules)
+E.print_fresh(REPORT.get("fresh_wording"))
+print("\nRun-2 target: the PURE gate passes (model routes everything after the guards), not only hybrid. Pure gate:", "PASS" if GATE_PURE else "FAIL")
 REPORT.update(gate_rules=rules, gate_finetuned=ft, gate_finetuned_pure=ft_pure, gate=EF.gate(ft, rules)[1], gate_pass=GATE_PASS,
-              gate_pure=EF.gate(ft_pure, rules)[1])
+              gate_pure=EF.gate(ft_pure, rules)[1], gate_pure_pass=GATE_PURE)
 json.dump(REPORT, open(os.path.join(WORK, "eval_report.json"), "w"), indent=1)
 FT.FT_GENERATE = None; os.environ["NP_BRAIN"] = "rules"
 ''')

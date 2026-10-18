@@ -339,7 +339,7 @@ RUN1_TEST_SHA = "01e98dbfc4c5ec95edf58c35b21eefd7ab30f7a6393f17081964608e743e49f
 
 def test_dataset_is_small_clean_and_held_out():
     tr, va, te = load("train"), load("val"), load("test")
-    assert sum(os.path.getsize(os.path.join(DATA, n + ".jsonl")) for n in ("train", "val", "test")) < 14 * 1024 * 1024
+    assert sum(os.path.getsize(os.path.join(DATA, n + ".jsonl")) for n in ("train", "val", "test")) < 20 * 1024 * 1024        # v4: ~17 MB (fresh test + v4 rows)
     assert len(tr) >= 3000 and len(va) >= 300 and len(te) >= 300
     key = lambda r: (" ".join(r["question"].lower().split()), r["previous"])
     assert not {key(r) for r in tr + va if r["task"] == "route"} & {key(r) for r in te if r["task"] == "route"}
@@ -384,7 +384,7 @@ def test_dataset_v3_weak_spot_rows_and_frozen_run1_test():
 def test_dataset_v2_categories_and_balance():
     import collections, sys
     tr, va, te = load("train"), load("val"), load("test")
-    assert 7000 <= len(tr) <= 8000                 # 5,960 base + ~1,300 v3 weak-spot rows
+    assert 8500 <= len(tr) <= 10500                # 5,960 base + ~1,300 v3 + ~2,600 v4 rows, minus the near-duplicate cap
     src = collections.Counter(r["source"] for r in tr)
     for c in ("indirect", "multipart", "nearmiss_safe", "nearmiss_risky", "clarify", "balance", "long_noisy", "mixed_role"):
         assert src[c] >= (60 if c == "balance" else 100), c
@@ -550,3 +550,36 @@ def test_tool_outside_role_scope_is_refused(ft, base):
     ft(route='{"tool": "m01", "args": {"region": "Region B"}}')
     r = A.Agent(*base).ask("What is licence utilisation in region b?", "regional_lead")
     assert r["type"] == "refuse" and not r.get("rows")
+
+
+def test_dataset_v4_fresh_wording_contrast_and_audit():
+    import collections, re, sys
+    sys.path.insert(0, os.path.dirname(DATA))
+    from fresh_test_en import FRESH_TEST
+    import templates_v4 as V4
+    tr, va, te = load("train"), load("val"), load("test")
+    fresh = [r for r in te if r["source"] == "fresh_wording"]
+    assert 180 <= len(fresh) <= 230 and all(r["task"] == "route" for r in fresh)
+    norm = lambda q: re.sub(r"[^a-z0-9]+", " ", q.lower()).strip()
+    fw = [set(norm(r["question"]).split()) for r in fresh]
+    for r in tr + va:                              # fresh rows: no exact or near-copy (token Jaccard >= 0.8) in train / val
+        if r["task"] != "route": continue
+        w = set(norm(r["question"]).split())
+        assert not any(len(w & h) / max(1, len(w | h)) >= 0.8 for h in fw), r["question"]
+    trq = " || ".join(norm(r["question"]) for r in tr + va)
+    for lab, (_, test_al) in V4.METRIC_ALIASES.items():   # held-out aliases never appear in train / val
+        for a in test_al: assert norm(a) not in trq, a
+    for _, (_, test_al) in V4.AGENT_ALIASES.items():
+        for a in test_al: assert norm(a) not in trq, a
+    src = collections.Counter(r["source"] for r in tr)
+    for c in ("v4_alias", "v4_agent_alias", "v4_vague", "v4_clarify", "v4_claim", "v4_html", "v4_contrast_unsafe", "v4_contrast_safe",
+              "v4_contrast_scope", "v4_compound"):
+        assert src[c] >= 20, (c, src[c])
+    assert any(r["source"].startswith("v4_") for r in va)          # early stopping sees the new categories
+    for r in tr:
+        if r["source"] == "v4_contrast_scope": assert r["label"] == "refuse" and r["args"]["reason"] == "scope"
+        if r["source"] == "v4_html" and r["label"] not in ("refuse",): assert "<" in r["question"]
+    seen = collections.Counter(norm(r["question"]) for r in tr if r["task"] == "route" and not r["previous"])
+    assert max(seen.values()) <= 2                                 # near-duplicate cap: same text at most twice
+    pub = load("public_train")
+    assert not any(r["source"] == "public:fetaqa" for r in pub) and sum(r["task"] == "chat" for r in pub) <= 250

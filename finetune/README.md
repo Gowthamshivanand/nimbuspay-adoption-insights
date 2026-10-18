@@ -153,3 +153,7 @@ Rebuild after changing intents or guards: `python finetune/make_dataset.py && py
 - Latency: in hybrid mode the model is called only when rules has no confident match, and only to route (`FT_ANSWER=0`), with a 4 s cap before the rules answer is used. Run 1 measured p50 1.14 s / p95 13.6 s with the model on every question and writing answers; the hybrid numbers on the laptop are not measured yet (`eval_finetuned.py` prints them).
 - In hybrid mode the gate passes even with a bad model (see the caveat above), so judge the model by the hybrid tool accuracy and the pure-mode gate.
 - The number check catches digits, not numbers written as words.
+
+## Run 2 data (v4) and notebook changes
+Target: pass the **pure** gate, not only hybrid. Data: 9,195 synthetic train + 1,493 public (FeTaQA dropped), 820 val, 1,155 test including a new **194-row fresh-wording set** (rules engine 42.8% on it). Details: `data/README.md` (v4), `RUN1_FAILURE_ANALYSIS.md`, `python finetune/label_audit.py`.
+Notebook: eval every 100 steps on validation loss, best checkpoint restored (`load_best_model_at_end`), early stopping (patience 3), a hard training cap `TIME_BUDGET_MIN = 88` (run 1: 1,084 steps = 88.4 min), LoRA dropout 0.1. Switches unchanged: `MODEL_CHOICE`, `EPOCHS`, `USE_PUBLIC`, `PUSH_TO_HF` (token prompted, never stored). The report now includes `fresh_wording`, `stop_reason`, `best_val_loss` and `gate_pure_pass`.

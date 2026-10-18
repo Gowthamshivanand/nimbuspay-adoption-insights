@@ -14,10 +14,25 @@ size_categories: [1K<n<10K]
 | File | Content | Licence |
 |---|---|---|
 | `train.jsonl`, `val.jsonl`, `test.jsonl` | **Synthetic** NimbusPay data, written for this repo or generated from its templates. Every number comes from the repo's synthetic warehouse. No real company, person or customer, no personal data. | MIT (this repo) |
-| `public_train.jsonl` | Small, processed sample of public datasets, mapped to our formats (table below). Training only. | **CC-BY-SA-4.0 as a combined file** (FeTaQA is ShareAlike); each row also keeps its own `licence`, `attribution` and `dataset` (repo@revision) |
+| `public_train.jsonl` | Small, processed sample of public datasets, mapped to our formats (table below). Training only. | Mixed permissive (CC-BY-4.0, CC-BY-3.0, Apache-2.0, MIT). Since v4 FeTaQA (CC-BY-SA) is dropped by default, so the combined file is no longer ShareAlike; set `NP_PUBLIC_FETAQA=1` to bring it back (then CC-BY-SA-4.0 as a combined file). Each row keeps its own `licence`, `attribution` and `dataset` (repo@revision) |
 | `public_eval.jsonl` | Eval-only samples of XSTest, When2Call test and CLINC150 test. Never trained on. | CC-BY-4.0 / CC-BY-3.0 (per row) |
 
 The synthetic files are built by `python finetune/make_dataset.py` (deterministic, seed 20261018) from the repo itself: the governed tool list (`app/agent.py` `INTENT_HELP`), the code guards, the conversation clarify rule, the 9 synthetic data scenarios and the real `Agent` outputs. The public files are built by `python finetune/fetch_public.py` (pinned revisions, anonymous, only the sampled rows are kept in the gitignored `finetune/.public_cache/`) and then `python finetune/make_public.py`.
+
+## v4 (before Colab run 2, 19 Oct 2026)
+Goal: let the model pass the **pure** release gate (model routes everything after the code guards), not only hybrid. Failure analysis of run 1: `finetune/RUN1_FAILURE_ANALYSIS.md`.
+
+| | v3 (run 1 data) | v4 |
+|---|---|---|
+| train (synthetic) | 7,270 | 9,195 (+2,577 v4 rows, -650 near-duplicates) |
+| val | 534 | 820 (+286 v4 rows, so early stopping sees the new categories) |
+| test | 961 | 1,155 (+194 fresh-wording rows; the first 898 rows are still byte-for-byte the run-1 test) |
+| public_train | 2,892 | 1,493 (FeTaQA dropped, smol-smoltalk capped at 250, public `none` capped at 800) |
+
+- **New categories** (`finetune/templates_v4.py`, own RNG, appended after v3): metric aliases x 12 casual frames (`v4_alias`), extra agent aliases, slang / typo wrappers, vague asks (`none`), agent-less asks (`none:agent`), many-asks (`none:topic`), claims (money / % / x-times -> `none`; hours / utilisation / seats -> the tool), HTML-wrapped questions, compound asks, and 38 hand-written **unsafe vs safe contrast pairs** (individuals, groups under 5, PII, writes, injection, forecast, causal, ungoverned, gaming, vague) plus scope pairs for the region-scoped roles.
+- **Fresh-wording test** (`finetune/fresh_test_en.py`, 194 rows, test only): formal / email and Indian-English office phrasing, held-out metric and agent aliases with held-out frames, new contrast pairs and follow-ups. No train or val row equals or near-copies (token Jaccard >= 0.8) a fresh row or uses a held-out alias (tests check it). The rules engine scores 42.8% on it. Reported by `ft_eval.fresh_summary` in the notebook and `eval_finetuned.py`.
+- **Near-duplicate cap** on train route rows: the same normalised text at most twice (294 dropped), and within a label at most 3 rows per word+bigram cluster (Jaccard >= 0.7, 356 dropped).
+- **Label audit** (`python finetune/label_audit.py` -> `data/label_audit.json`): every route row in train / val / test / public through the code guards, the clarify rule, the scope rule, the target format and the rules router. 0 hard contradictions in train / val after the build's own fixes (24 v4 rows relabelled to the guard's refusal, 17 to `clarify: agent`, 2 fresh rows by guards).
 
 ## Tasks
 | Task | Input | Target |
