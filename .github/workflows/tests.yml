@@ -8,5 +8,5 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt pytest httpx
-      - run: python -m pytest -q tests/test_pipeline.py tests/test_agent.py tests/test_probes.py tests/test_persona.py tests/test_api.py tests/test_features.py tests/test_brain.py tests/test_cost.py
+      - run: python -m pytest -q tests/test_pipeline.py tests/test_agent.py tests/test_probes.py tests/test_persona.py tests/test_api.py tests/test_features.py tests/test_brain.py tests/test_cost.py tests/test_improvements.py
       - run: python tools/eval_agent.py --brain rules   # release gate: golden 21/21 and every probe

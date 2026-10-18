@@ -5,7 +5,13 @@
 <header>
   <div class="brand"><b>NimbusPay</b> Adoption Insights <span class="pill">live product</span><span class="pill syn">SYNTHETIC DATA</span></div>
   <div class="ctrl">
-    <label>Persona <select id="persona"></select></label>
+    <div class="roles" data-testid="role-switch" title="Role switch: scope is enforced on the server, the UI only sends the role name">
+      <span class="muted">Role</span>
+      <button type="button" class="role" data-role="manager" data-testid="role-manager">Manager</button>
+      <button type="button" class="role" data-role="analyst" data-testid="role-analyst">Analyst</button>
+      <button type="button" class="role" data-role="guest" data-testid="role-guest">Guest</button>
+      <select id="persona" data-testid="persona" aria-label="All roles"></select>
+    </div>
     <span id="ds" class="muted"></span>
   </div>
 </header>

@@ -1,10 +1,11 @@
 """FastAPI server: REST API + the web UI. Local, read-only analytics over SYNTHETIC data."""
-import datetime as dt, html, json, os, sqlite3, threading
+import datetime as dt, html, json, os, re, sqlite3, threading, time
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from . import pipeline as P, agent as A, features as F, costcalc as CC, __version__
+from . import conversation as CV, feedback as FB, modelcompare as MC
 
 HERE = os.path.dirname(__file__)
 SCEN = os.path.join(HERE, "data", "scenarios")
@@ -107,19 +108,97 @@ def sample(key: str, name: str):
 class Ask(BaseModel):
     question: str
     persona: str | None = None      # missing or unknown -> least-privileged persona (deny by default)
+    session_id: str | None = None   # optional: enables follow-ups ('and Region B?'); carries no role or permission
 
 
-@app.post("/api/ask")
-def ask(body: Ask):
+def _answer(body):
     q = body.question.strip()[:500]
     if not q: raise HTTPException(422, "Empty question")
     persona = A.resolve_persona(body.persona)
-    r = S.agent.ask(q, persona)
+    r = CV.respond(S.agent, q, persona, body.session_id)   # guards + role check run on every turn inside
     logged = persona if persona == body.persona else f"{persona} (requested: {body.persona or 'none'})"
     S.audit.execute("INSERT INTO audit VALUES(?,?,?,?,?,?,?,?)", (dt.datetime.now().isoformat(timespec="seconds"), S.key, logged, q,
                     r["type"], r["intent"], ",".join(c["metric"] for c in r["citations"]), r["mode"]))
     S.audit.commit()
     return r
+
+
+@app.post("/api/ask")
+def ask(body: Ask):
+    return _answer(body)
+
+
+STREAM_DELAY_S = float(os.environ.get("NP_STREAM_DELAY_MS", "18")) / 1000
+
+
+@app.post("/api/ask/stream")
+def ask_stream(body: Ask):
+    """Server-sent events: 'meta' (brain, mode, confidence, latency), then 'token' chunks of the answer text, then 'done'
+    with the full response. The answer is computed in full first (numbers from governed SQL), then streamed."""
+    r = _answer(body)
+    def gen():
+        meta = {k: r.get(k) for k in ("type", "intent", "mode", "brain", "confidence", "confidence_basis", "latency_ms", "persona", "followup", "session_id")}
+        yield f"event: meta\ndata: {json.dumps(meta)}\n\n"
+        for tok in re.findall(r"\S+\s*", r["text"]):
+            yield f"event: token\ndata: {json.dumps(tok)}\n\n"
+            if STREAM_DELAY_S: time.sleep(STREAM_DELAY_S)
+        yield f"event: done\ndata: {json.dumps(r, default=str)}\n\n"
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.delete("/api/session/{sid}")
+def end_session(sid: str):
+    CV.STORE.clear(CV.valid_sid(sid) or "-"); return dict(ok=True)
+
+
+class Feedback(BaseModel):
+    question: str
+    answer: str = ""
+    rating: str
+    brain: str = ""
+    mode: str = ""
+    intent: str = ""
+    type: str = ""
+    persona: str = ""
+    comment: str = ""
+
+
+@app.post("/api/feedback")
+def feedback(body: Feedback):
+    try:
+        row = FB.record(body.question, body.answer, body.rating, body.brain, body.mode, body.intent, body.type,
+                        A.resolve_persona(body.persona), S.key, body.comment)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return dict(ok=True, id=row["id"])
+
+
+@app.get("/api/feedback")
+def feedback_summary():
+    return FB.summary()
+
+
+@app.get("/api/models")
+def models():
+    return MC.overview()
+
+
+@app.post("/api/models/run/{key}")
+def models_run(key: str):
+    if key not in dict(MC.BRAINS): raise HTTPException(404, "Unknown brain")
+    ok, why = MC.available(key)
+    if not ok: raise HTTPException(409, f"Not available: {why}")
+    return MC.start(key)
+
+
+@app.post("/api/models/upload")
+async def models_upload(file: UploadFile = File(...)):
+    raw = await file.read()
+    if len(raw) > 5_000_000: raise HTTPException(413, "File too large")
+    try:
+        return MC.add_upload(raw.decode("utf-8-sig"), file.filename)
+    except (ValueError, UnicodeDecodeError) as e:
+        raise HTTPException(422, f"Not a saved eval: {e}")
 
 
 @app.get("/api/audit")

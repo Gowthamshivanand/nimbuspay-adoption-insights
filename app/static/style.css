@@ -27,3 +27,10 @@ pre{background:#f3f3f3;padding:8px;border-radius:6px;overflow:auto;font-size:12p
 .chips button{margin:3px;font-size:12px}.sc{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}.sc .card.on{border:2px solid var(--acc)}
 .modal{position:fixed;inset:0;background:#2222228c;display:flex;align-items:center;justify-content:center;z-index:9}
 footer{padding:16px 20px;font-size:12px;text-align:center;color:var(--mut)}
+.roles{display:flex;align-items:center;gap:4px;flex-wrap:wrap}.roles .role{background:#fff;color:var(--ink);border:1px solid #cfcfcf;font-weight:normal;padding:4px 10px}
+.roles .role.on{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:bold}.roles .role[data-role=guest].on{background:var(--bad);border-color:var(--bad)}
+.tag.b-rules{background:#eaeaea}.tag.b-ollama,.tag.b-openai{background:#fdf1e5;color:#8a4a0b}.tag.b-finetuned{background:var(--ver);color:#fff}.tag.lat{background:#fff;border:1px solid var(--line)}
+.bot.clarify{border-left:5px solid var(--ink)}.fu{font-size:12px;color:var(--mut);margin-bottom:4px}.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12px}
+.acts button{font-size:12px;padding:3px 9px}.acts .sel{border-color:var(--acc);background:#fdf1e5}.cursor::after{content:"\25AE";color:var(--acc);animation:blink 1s steps(1) infinite}@keyframes blink{50%{opacity:0}}
+.why th{width:150px}.na{color:var(--mut);font-style:italic}.ok{color:var(--ver);font-weight:bold}
+button:disabled{opacity:.45;cursor:not-allowed}

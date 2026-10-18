@@ -12,6 +12,9 @@ PERSONAS = {
     "platform_engineer": dict(label="Platform engineer", regions=None),
     "fraud_ops_lead": dict(label="Fraud operations lead (Region A)", regions=["Region A"]),
     "finance": dict(label="Finance and Procurement", regions=None),
+    # Demo roles for the on-screen role switch. Scope is enforced here, server-side, never in the UI.
+    "manager": dict(label="Manager (all regions)", regions=None),
+    "analyst": dict(label="Analyst (Region A)", regions=["Region A"]),
     # Deny by default: a missing or unrecognised role gets NO data scope. In production the role is an SSO claim.
     "guest": dict(label="Unrecognised role (least privilege)", regions=[]),
 }
@@ -77,8 +80,14 @@ SUGGEST = [
 ]
 
 
+SQL_TRACE = __import__("threading").local()   # per-request row counts of SQL actually executed ("Why this number?")
+
+
 def _sql(db, sql, args=()):
-    cur = db.execute(sql, args); return cur.fetchall()
+    rows = db.execute(sql, args).fetchall()
+    tr = getattr(SQL_TRACE, "rows", None)
+    if tr is not None: tr.append(len(rows))
+    return rows
 
 
 def _scope(persona):
