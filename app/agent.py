@@ -33,7 +33,7 @@ WRITE = (rf"(^\W*(please |kindly |can you |could you |would you |will you |go ah
          rf"|^\W*i (want|need|would like) (you )?to {_WV}\b|\b{_WV}\b.*\bfor me\b|\b(drop table|insert into|delete from|truncate)\b|\bemail (them|him|her)\b)")
 PII = (r"(card number|\bpan\b|cvv|aadhaar|account number|phone number|email address|home address|\buser-\d+|password"
        r"|\b(show|list|give|see|send|display|print|open|read|access|view|get)\b.*\braw (events?|logs?|data)|raw (events?|logs?) (for|of|from|by)\b"
-       r"|\b(export|download|dump|extract)\b.*\b(events?|logs?|records?|rows?|data)\b|event[- ]level|user[- ]level (data|records?)|\bprompts?\b|chat (history|logs?)|transcripts?)")
+       r"|\b(export|download|dump|extract)\b.*\b(events?|logs?|records?|rows?|data)\b|event[- ]level|user[- ]level (data|records?)|\b(show|list|give|see|send|display|print|open|read|access|view|get|pull|share|what)\b.*\bprompts?\b(?!\s+(are|is|were|get|gets) counted)|prompts? (text|content|history|logs?)|(typed|wrote|written|sent|entered) prompts?|prompts? (they|users?|people|staff|employees|analysts|someone) (typed|wrote|sent|entered|asked)|chat (history|logs?)|transcripts?)")
 INDIVIDUAL = (r"(which (analysts?|users?|people|persons?|employees?|staff|members?|individuals?|colleagues?|agents? users?)\b"
               r"|who (uses|is using|used|isn'?t using|doesn'?t use|never uses|asks?|asked)\b"
               r"|who (is|are) (the |our )?(least|most|top|bottom|best|worst|laziest|slowest|heaviest|lightest|power)"
@@ -42,14 +42,14 @@ INDIVIDUAL = (r"(which (analysts?|users?|people|persons?|employees?|staff|member
               r"|(top|bottom) \d* ?(users|analysts|people|employees|performers)|power users?|\blazy\b|slacker|underperform"
               r"|(per|by|each) (employee|analyst|person)\b|by user\b|each user\b"
               r"|which ([\w-]+ )?(analysts?|employees?|staff|people|persons?)\b|(?<!agent )\bnames?\b|seat holders?|\b(inactive|idle) (users|people|employees|analysts|staff)\b"
-              r"|\b(list|show|name|identify|find|flag)\b.*\b(users|people|employees|analysts|staff|individuals)\b|(employee|analyst|person|user)[- ]level|\banalysts? (are|is)\b)")
+              r"|\b(list|show|name|identify|find|flag)\b(?!.*\b(by|per|across|in each) (regions?|markets?|countr(y|ies)|teams?|cohorts?|weeks?|months?)\b).*\b(users|people|employees|analysts|staff|individuals)\b|(employee|analyst|person|user)[- ]level|\banalysts? (are|is)\b)")
 FORECAST = (r"(next (week|quarter|month|year)|\bwill\b.*\b(be|rise|grow|fall|drop|increase|decrease|reach|keep|hit|improve|look|need)\b"
             r"|forecast|predict|projection|going to (be|rise|grow|fall|drop|need)|expect(ed)? (to|next)|in (3|6|12|three|six|twelve) months)")
 CAUSAL = (r"(\bcause[ds]?\b|caused|because of the (agent|ai)|did the .* (make|lead to|drive)|impact of the agent on"
           r"|did (the |our )?[\w\- ]*(agent|assistant|bot|ai|copilot|checker|tool)s? (reduce|cut|lower|improve|increase|speed|boost|drive|make|lead|prevent|stop|decrease)"
-          r"|thanks to (the )?(agent|ai|assistant)|attribut(e|able)\b.*\bto (the )?(agent|ai|assistant)|because of (the )?(agent|ai|assistant))")
+          r"|thanks to (the )?(agent|ai|assistant)(?![\w-]*\s+(team|teams|office|squad|council|group|lead|folks|crew|ops)\b)|attribut(e|able)\b.*\bto (the )?(agent|ai|assistant)|because of (the )?(agent|ai|assistant))")
 # Prompt injection / jailbreak: instructions hidden in the question never change the rules (the rules are code, not a prompt).
-INJECTION = (r"(ignore (all |any |the |your |my )?(previous |prior |above |earlier |system )*(instructions|rules|guardrails|prompts?)"
+INJECTION = (r"((ignore|disregard|forget|skip|drop) (all |any |the |your |my |every |of )*(previous |prior |above |earlier |preceding |past |existing |original |system |safety )*(instructions|rules|guardrails|guidance|guidelines|directions|directives|policies|constraints|prompts?|context)|(ignore|disregard|forget) (everything|anything|all) (above|before|prior|previous|earlier|you were told)"
              r"|system prompt|developer mode|admin mode|god mode|jailbreak|\bdan\b|do anything now|no (restrictions|rules|limits|guardrails)"
              r"|pretend (you are|to be|you're)|you are now|from now on you|act as (an? )?(admin|root|unrestricted|different)|bypass (the |your )?(guards?|rules|filters?|security)"
              r"|override (the |your )?(rules|guards?|role|scope|security)|disregard (the |your |all )?(rules|instructions)|^\W*system\s*:)")
