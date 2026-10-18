@@ -1,7 +1,7 @@
 """Conversation layer around Agent.ask: follow-up questions, confidence + clarifying questions, transparency fields.
 Every turn still goes through Agent.ask, so the code guards and the role check run on EVERY turn. The session only
 remembers the previous question and which governed tool answered it; it never stores or carries a role or permission."""
-import os, re, threading, time
+import inspect, os, re, threading, time
 from . import agent as A
 
 TTL_S = float(os.environ.get("NP_SESSION_TTL", "900"))         # follow-up context expires after 15 min idle
@@ -141,7 +141,13 @@ def followup(agent, q, prev):
     return None
 
 
-def respond(agent, q, persona=None, session_id=None, store=STORE):
+def _ask(agent, q, persona, prev):
+    """Pass the previous question to Agent.ask when it accepts one (the fine-tuned brain resolves follow-ups with it)."""
+    if prev and "prev" in inspect.signature(agent.ask).parameters: return agent.ask(q, persona, prev)
+    return agent.ask(q, persona)
+
+
+def respond(agent, q, persona=None, session_id=None, store=STORE, previous=None):
     """One conversational turn. Adds: confidence, brain, latency_ms, sql_executed, row_count, followup, session_id."""
     t0 = time.perf_counter(); sid = valid_sid(session_id)
     persona = A.resolve_persona(persona)
@@ -158,7 +164,8 @@ def respond(agent, q, persona=None, session_id=None, store=STORE):
             if not guard and persona != A.LEAST_PRIVILEGE:
                 r = needs_clarify(agent, asked, rfn)
             if r is None:
-                r = agent.ask(asked, persona)              # guards + role check run here, on every turn
+                pq = None if fu_kind else (previous or (prev or {}).get("q"))
+                r = _ask(agent, asked, persona, pq)         # guards + role check run here, on every turn
                 if r["mode"] == "rules (guard)" or r["intent"] == "no_role":
                     conf, basis = 1.0, "deterministic code guard / role check"
                 elif r["intent"] == "unmatched":

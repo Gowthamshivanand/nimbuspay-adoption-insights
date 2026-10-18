@@ -109,13 +109,15 @@ class Ask(BaseModel):
     question: str
     persona: str | None = None      # missing or unknown -> least-privileged persona (deny by default)
     session_id: str | None = None   # optional: enables follow-ups ('and Region B?'); carries no role or permission
+    previous: str | None = None     # optional previous question (stateless clients); the session is used if absent
 
 
 def _answer(body):
     q = body.question.strip()[:500]
     if not q: raise HTTPException(422, "Empty question")
     persona = A.resolve_persona(body.persona)
-    r = CV.respond(S.agent, q, persona, body.session_id)   # guards + role check run on every turn inside
+    prev = (body.previous or "").strip()[:500] or None
+    r = CV.respond(S.agent, q, persona, body.session_id, previous=prev)   # guards + role check run on every turn inside
     logged = persona if persona == body.persona else f"{persona} (requested: {body.persona or 'none'})"
     S.audit.execute("INSERT INTO audit VALUES(?,?,?,?,?,?,?,?)", (dt.datetime.now().isoformat(timespec="seconds"), S.key, logged, q,
                     r["type"], r["intent"], ",".join(c["metric"] for c in r["citations"]), r["mode"]))

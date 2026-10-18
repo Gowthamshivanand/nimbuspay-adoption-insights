@@ -29,7 +29,7 @@ Run these on the laptop you will present from, the night before. The full list i
    ```
    It finds the pack folder (the one with `deck/` and `extras/`; pass `--pack PATH` if it can't), makes `extras/qr_final.png` and `.svg` (plus `qr_repo_final.*` with `--repo`), and writes new files ending in `_final`: the TPM deck with slide 10's QR, label and links filled in (`deck/..._final.pptx`, plus a PDF if LibreOffice is installed), `extras/LEAVE_BEHIND_TPM_final.pdf` and `extras/CHEAT_SHEET_TPM_final.pdf` (needs Chrome, Edge or Chromium; otherwise it leaves an `_final.html` to print). Originals are never touched. It refuses placeholder links. Scan the new QR with your phone before you print. For the repo's own `assets/qr.png`, use `python tools/make_qr.py URL --out assets`.
 2. **Test the small open model:** `ollama pull qwen2.5:3b-instruct`, then `python tools/eval_agent.py --brain ollama`. If it scores below the rules brain, present with `NP_BRAIN=rules python -m app` (the rules fallback, same numbers).
-3. **Run the tests:** `make test` (164 tests in CI plus a browser walkthrough via `make test-ui`, then the agent test gate).
+3. **Run the tests:** `make test` (193 tests in CI plus 2 browser walkthroughs via `make test-ui`, then the agent test gate).
 4. **Rehearse the demo:** `docs/DEMO_SCRIPT.md` (TPM-led, 4 minutes); backup video `docs/demo.mp4`.
 
 ## Live product (`app/`): a real, runnable Adoption Insights product
@@ -109,7 +109,9 @@ On the workbook's extended synthetic set it reproduces **all 35 Expected_Results
 | **Seats and bill** | **Seat reclaim finder**: never-assigned and idle seats by team, with 10% headroom kept, and a reclaim figure at a placeholder price (100 price units a seat, labelled synthetic). Team-level only. **Vendor bill reconciler**: upload the vendor invoice CSV (sample in `app/data/samples/vendor_invoice_sample.csv`) to compare billed vs purchased vs assigned vs active seats per team. Overbilling, unknown teams, unassigned billed seats and missing teams are flagged. |
 | Regional | Funnel and M01, M02, M11 by region; teams under 5 assigned seats are suppressed |
 | Engineering | M10, M11, M12, M16, M20; agent registry with build type and its source (registry or backfill) |
-| Agent | Read-only chat with the 21 golden questions as chips; the brain shown in the header; citations, SQL, refusals with safe alternatives |
+| Agent | Read-only chat with the 21 golden questions as chips; the brain shown in the header; citations, SQL, refusals with safe alternatives. Answers **stream in** (typing effect) and each one shows **which brain answered** (rules, Ollama, fine-tuned, hosted LLM), its **latency in ms** and a **confidence**. **Follow-ups** work ("and Region B?", "what about the fraud one?", "what about last month?"). Vague asks get a **clarifying question** with 2-3 clickable options. **Why this number?** opens one panel with the SQL run, the metric definition, ID and version, data-as-of and rows returned. **Thumbs up/down** on every answer. **Ask as Manager / Analyst / Guest** re-asks the same question under another role |
+| **Role switch** (header) | Manager, Analyst (Region A) and Guest buttons plus every persona in the dropdown. The UI only sends a role name; scope and deny-by-default are enforced on the server (an unknown or mistyped role is Guest) |
+| **Models** | Model comparison: the same agent test per brain (rules always; the stock Ollama model and the fine-tuned model only if reachable, otherwise **not available**, never estimated). Golden, panel and extra scores, unsafe answers, number faithfulness, p50/p95 latency, release gate. Load a saved `tools/eval_agent.py --save` JSON from another machine |
 | Alerts | Rule-based alerts from the governed metrics |
 | Compare | All 8 scenarios side by side |
 | Board pack | One click: printable HTML (save as PDF) or Markdown |
@@ -140,6 +142,14 @@ The model gets the question plus the list of governed tools, and Ollama's struct
 
 **Evaluate whichever brain is active:** `python tools/eval_agent.py` (or `--brain rules|ollama|openai`) runs the 21 golden questions, 8 guard and paraphrase probes, and the 64-question unscripted probe set in `tests/data/probes.json` (a 24-question panel set with 17 should-answer and 7 should-refuse, plus 40 extra paraphrases, adversarial asks and role checks), and prints the pass rates. The rules brain scores 21/21 on the golden questions, 29/29 on the guard probes, 24/24 on the panel set and 40/40 on the extras. Run it with your model before the interview; if the model scores lower, start the app with `NP_BRAIN=rules`.
 
+**Conversation, confidence and feedback** (`app/conversation.py`, `app/feedback.py`, `app/modelcompare.py`):
+- **Follow-ups.** Send a `session_id` to `/api/ask` (the UI does) and a short follow-up reuses the previous governed tool with the new slot: a region (`and Region B?` rewrites the utilisation question for Region B), an agent (`what about the KYC one?`) or a time (`what about last month?` says the data set holds one closed period and never invents a prior one). The session is in memory, 15 min TTL (`NP_SESSION_TTL`), capped at 500 sessions, and stores only the previous question and tool: **never a role**. Every turn goes through the guards and the role check again. Without a `session_id`, `/api/ask` behaves exactly as before (it only gains extra fields).
+- **Streaming.** `POST /api/ask/stream` (same body) returns server-sent events: `meta` (brain, mode, confidence, latency), `token` chunks, then `done` with the full response. The answer is computed in full first, so numbers still come only from governed SQL; streaming is presentation. The UI falls back to `/api/ask` if streaming fails.
+- **Confidence and clarifying questions.** The rules engine scores its own match (specific pattern 0.95, named agent 0.9, general pattern 0.85 minus 0.1 for each other tool that also matched, floor 0.6, no match 0). A model brain's confidence is the model's own if it reports one, else agreement with the rules router (agree 0.95, rules no match 0.6, disagree 0.45). Below `NP_CONFIDENCE_MIN` (0.5), or when a required slot is missing ("is the agent saving time?" with no agent named), it returns `type: clarify` with 2-3 options instead of guessing.
+- **Why this number?** Every response carries `sql_executed`, `row_count`, `latency_ms`, `brain` and `confidence`. Figures that come from the pipeline (for example the funnel) say so instead of claiming a SQL re-run.
+- **Feedback.** `POST /api/feedback` appends to `data/feedback/feedback.jsonl` (gitignored; `NP_FEEDBACK` to move it): question, answer, rating, brain, mode, role label, dataset, timestamp, no user identity. `python tools/export_feedback.py list | review <id> --tool m01 | review <id> --refuse pii | review <id> --reject | export` turns **human-reviewed** misses into `data/feedback/finetune_candidates.jsonl`. Nothing trains automatically.
+- **Model comparison.** `python tools/eval_agent.py --brain <rules|ollama|finetuned> --save eval.json` writes a `nimbuspay-eval/1` file; the **Models** tab runs it per reachable brain (`GET /api/models`, `POST /api/models/run/{brain}`) or loads a saved file (`POST /api/models/upload`). A run whose brain fell back to rules is shown as not available, not as that model's score. Number faithfulness is strict: a number counts as faithful only if it appears in the governed result, its SQL rows (or a share of two row values), the SQL, the question or the fixed answer templates. The rules engine scores 97.8%: one answer (engineer-built vs drag-and-drop) computes an error rate from summed runs, which the strict check can't trace.
+
 **Golden questions:** all 21 Agent_Test_Questions get the expected behaviour (answer, answer with caveat, or refuse) in the workbook's own state, with no verified outcome data yet. pytest always runs against the rules brain, and `tests/test_brain.py` checks Ollama routing, guard order and fallback against a fake Ollama server.
 
 ### Scenarios (real CSV data through the same pipeline)
@@ -159,9 +169,9 @@ Upload your own `events.csv`, `seats.csv` and `registry.csv` on the **Data** tab
 ### Tests
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                      # 164 tests in CI plus a browser walkthrough (Playwright), then the agent test gate: tools/eval_agent.py
+python -m pytest -q                      # 193 tests in CI plus 2 browser walkthroughs (Playwright), then the agent test gate: tools/eval_agent.py
 ```
-The UI test needs a Chrome/Chromium (set `CHROME_PATH` if it isn't at `/usr/bin/google-chrome`) and writes `docs/screenshots/app-*.png`; it skips if Playwright is missing.
+`tests/test_improvements.py` (29 tests) covers follow-ups, streaming, the Models screen, confidence and clarifying questions, the why-panel fields, feedback and its review export, and the role switch. `tests/test_ui_features_playwright.py` walks those features in a browser and saves `docs/screenshots/app-14..20`. The UI tests need a Chrome/Chromium (set `CHROME_PATH` if it isn't at `/usr/bin/google-chrome`) and write `docs/screenshots/app-*.png`; they skip if Playwright is missing.
 
 ### Hosting the live product for free (you do this; nothing here deploys anything)
 - **Primary for the interview: your laptop.** `python -m app`, present from `http://127.0.0.1:8000`. Works with no internet.
@@ -217,6 +227,13 @@ Personas: Executive sponsor, Regional lead A, Regional lead B, Platform engineer
 ![Explain this number](docs/screenshots/app-11-lineage.png)
 ![What-if simulator](docs/screenshots/app-12-whatif.png)
 ![Seat reclaim and vendor bill](docs/screenshots/app-13-seats-bill.png)
+![Streaming answer with brain, latency and confidence](docs/screenshots/app-14-streaming.png)
+![Follow-up question](docs/screenshots/app-15-followup.png)
+![Why this number?](docs/screenshots/app-16-why-this-number.png)
+![Clarifying question](docs/screenshots/app-17-clarify.png)
+![Thumbs feedback](docs/screenshots/app-18-feedback.png)
+![Role switch: guest denied](docs/screenshots/app-19-role-switch.png)
+![Model comparison](docs/screenshots/app-20-models.png)
 ![Executive view](docs/screenshots/1-exec.png)
 ![Agent answering a why question](docs/screenshots/5b-agent-q07.png)
 ![How we count](docs/screenshots/4-count.png)
