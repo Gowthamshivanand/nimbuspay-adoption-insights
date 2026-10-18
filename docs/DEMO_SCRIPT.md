@@ -1,36 +1,42 @@
-# 4-minute demo script
+# 4-minute demo script (TPM-led)
 
-All values are illustrative synthetic data. Part A uses the static prototype (`index.html` or the GitHub Pages link). Part B uses the live product (`python -m app`, then http://127.0.0.1:8000). Open both tabs before you start.
+All values are illustrative synthetic data, not NimbusPay figures. The story is the TPM one: *how it is built, how it fails safely, what it costs, how it ships*. The DPM views (executive, seats, renewal) are there as evidence, not as the main act.
 
-## Part A: static prototype (0:00 to 1:30)
+**Before you start:** run `python -m app` and open http://127.0.0.1:8000 in one tab, and `index.html` (or the GitHub Pages link) in a second tab. Leave the live app on the **Data** tab and the persona on **Executive**. Have `docs/demo.mp4` (91.6 s, silent, captioned) open in a video player as the backup.
 
-| Time | Do | Say |
-|---|---|---|
-| 0:00 | Open `index.html` on the **Executive view**, scenario *Baseline demo* | "Leadership sees only vendor MAU. This view shows an AI value score, always beside its five pillars." |
-| 0:10 | Tick **Simulate critical-risk breach**, then untick. Tick **Simulate missing** on Outcome, then untick | "A breach flags the score red whatever its value. A missing pillar withholds the score: no silent guessing." |
-| 0:20 | **How we count** → switch to logical-interaction counting | "Nine raw events are two real interactions. Vendor-style counting overstates usage 4.5 times." |
-| 0:35 | **Adoption Insights Agent** → click **Q07** | "A why question gets a breakdown, an honest correlation caveat and next steps." |
-| 0:50 | Back in the agent, type a card number | "Unsafe or out-of-scope questions are refused, with a safe alternative." |
-| 1:00 | Change **Scenario**: Healthy → Shelfware → Critical-risk breach | "The same rules give a different renewal call: expand, right-size, remediate." |
-| 1:20 | Switch **Viewing as** to Regional lead B | "Row-level security: each persona sees only their scope." |
-
-## Part B: live product (1:30 to 4:00)
+The agent's brain is whatever is running: with Ollama and `qwen2.5:3b-instruct` it shows "Open model: ... (local, Ollama)"; without it, or with `NP_BRAIN=rules`, it shows "Rules engine". **Both are fine.** Decide before you walk on which one you are demoing, and use the matching line in step 5.
 
 | Time | Do | Say |
 |---|---|---|
-| 1:30 | Switch to the live product, **Data** tab | "This isn't a mock-up. It's a running product: a Python pipeline, a SQL warehouse and an agent, on my laptop, with no internet and no paid service." |
-| 1:40 | Point at the **Pipeline result** line | "The workbook's 210 raw rows: duplicates and late rows handled, 200 clean events, 44 interactions, 22 exact and 22 approximate. My tests check all 35 expected results in the workbook exactly." |
-| 1:55 | Click **Load** on *Baseline*, which opens the **Executive** tab | "Utilisation is 69.6% against a 70% threshold, so the engine says renew and right-size. Every figure carries its metric ID and version." |
-| 2:10 | **Agent** tab → click **Q01**, then open **SQL used** | "The agent answers from governed metrics only. It cites M01 version 1.0, the data-as-of time, and shows the exact SQL it ran." |
-| 2:25 | Click **Q12** (fraud analysts least), then **Q14** (card numbers) | "It refuses to single out people or show card data, and offers a safe alternative." |
-| 2:40 | Type: *What renewal outcome do you recommend?* | "Ask in plain English. The header shows the brain: a small open model running locally on Ollama if it is installed, otherwise the rules engine. It only picks a governed tool; numbers always come from SQL. If the model is not running, it falls back to the rules engine automatically." |
-| 2:55 | **What-if** tab: drag seats to 20, then **Simulate** | "Right-size to 20 seats and the same rules move us from right-size to expand, with no new data invented. Every number on screen also has an 'explain this number' panel with its SQL and owner." |
-| 3:15 | **Data** → Load *Critical-risk breach* → Executive | "A privacy incident turns the score red and forces remediation, even though usage looks fine." |
-| 3:30 | **Board pack** → *Open printable pack* | "One click gives a board-ready pack: recommendation, evidence, score with pillars, headline metrics, alerts." |
-| 3:45 | **Audit log** | "Every question I just asked is logged with persona, outcome and metrics cited. That's how this stays trustworthy." |
-| 3:55 | Stop | "Measure the work, not the clicks." |
+| 0:00 | Static tab: **How we count** | "First, why the vendor's numbers lie. Nine logged events are two real questions. Counting events overstates use 4.5 times, so the first thing I built is the counting layer." |
+| 0:15 | Switch to the live app, **Data** tab, point at **Pipeline result** | "This is running on my laptop: a Python pipeline and a SQL warehouse, no internet, no paid service. 210 raw rows: duplicates and late rows handled, 200 clean events, 44 interactions, 22 exact and 22 approximate. Tests check all 35 expected results in the workbook." |
+| 0:35 | Click **Load** on *Baseline*: opens **Executive** | "Utilisation is 69.6% against a 70% threshold, so the rules say renew and right-size. The value score, 53, always sits beside its pillars, and every figure carries its metric ID and version." |
+| 0:55 | **Agent** tab. Point at the **Brain** line | "The agent's architecture in one line: safety checks run first in plain code; then a small model only picks one governed tool; the tool's SQL produces every number." |
+| 1:10 | *Rules fallback.* If Ollama is off, point at "Rules engine (open model not detected)". If it is on, say the line anyway | "Right now the open model isn't running, so it has fallen back to the rules engine automatically. Same tools, same SQL, same answers on the golden questions. If the model dies in production, users get this, not an error." / (model on) "If I stop Ollama, it falls back to the rules engine with no change in the numbers; the eval runs both." |
+| 1:25 | Click **Q01**, open **SQL used** | "It cites M01 version 1.0 and the data-as-of time, and shows the exact SQL it ran. The model never writes SQL and never writes a number." |
+| 1:40 | *Refusal.* Click **Q14** (card numbers), then **Q12** (fraud analysts least) | "Unsafe asks are refused before the model sees them: no card data, no singling out people, with a safe alternative. A prompt can't talk past a code check." |
+| 1:55 | Type *What will utilisation be next quarter?* | "And no forecasts: it says a forecast would be a guess presented as a fact, and offers the current figure instead." |
+| 2:05 | **Seats and bill** tab | "The money side: 15 of 31 paid seats show no real use; the finder proposes reclaiming 10 and keeps 10% headroom per team." |
+| 2:20 | **Cost and scale** tab. Leave the default model | "Now the TPM question: what does running the agent cost? At 1,000 questions a day, with the model self-hosted on two CPU servers for availability, about **$586 a month**. Every input is a labelled assumption; prices are public list prices." |
+| 2:40 | Change **Model** to *Hosted API: gpt-6-luna* (or gpt-4o-mini) | "Switch to a hosted small model: about **$66 a month**, about a fifth of a cent per question. The model calls are about a dollar; the rest is the app server. So self-hosting costs more at this volume. You pay that to keep customer data in-house, which is a compliance call, not a cost call." |
+| 3:00 | Set **Users** to 2000 | "Ten times the users: about $78 a month hosted. Cost scales with tokens, not servers. Speed figures are assumptions until benchmarked; the proposed target is p95 under 3 seconds." |
+| 3:15 | **Data**: Load *Critical-risk breach*, then **Executive** | "A privacy incident turns the score red and forces remediation, however good usage looks." |
+| 3:30 | **Audit log** | "Every question I just asked is logged with persona, result, metrics cited and the mode: rules or model. That's the observability you need on day one." |
+| 3:45 | Stop | "How it ships: 164 tests in CI plus a browser walkthrough, then the agent test gate before every release, DEV to staging to production. Measure the work, not the clicks." |
+
+Say the test line exactly as written: "164 tests in CI plus a browser walkthrough, then the agent test gate". Don't round it to "165 in CI".
+
+## Optional extras (only if asked, about 20 s each)
+- **What-if** tab: drag seats to 20, **Simulate**: the same rules move right-size to expand, with no new data invented.
+- Click any metric card: **Explain this number** shows formula, owner, SQL and freshness.
+- Persona **Unrecognised role**: deny by default, least privilege.
+- **Board pack**: one-click printable summary.
 
 ## Fallbacks
-- Wi-Fi drops: everything above runs on localhost. Only the GitHub Pages link needs internet.
-- Laptop issue: play `docs/demo.mp4`, or open the screenshots in `docs/screenshots/app-*.png`.
+- Wi-Fi drops: everything above runs on localhost. Only the GitHub Pages link and hosted-model prices need internet, and the prices are already in the app.
+- Ollama misbehaves: `NP_BRAIN=rules python -m app`, then use the rules-fallback line in step 5.
+- Laptop issue: play `docs/demo.mp4` (it follows this flow), or open `docs/screenshots/app-*.png`.
 - A question fails live: say "it refuses rather than guesses", then click a golden-question chip.
+
+## Re-recording the video
+`docs/demo.mp4` is a silent, headless Playwright capture of this flow (1280x720, 91.6 s), recorded against the rules brain on synthetic data. The recorder script is kept outside the repo, in the project workspace (`tools_rec/rec_tpm.py`); it expects the app on port 8765.
