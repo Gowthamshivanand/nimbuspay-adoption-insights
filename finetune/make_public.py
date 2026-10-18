@@ -59,11 +59,13 @@ def main():
     personas = [p for p in MD.PERSONAS]
     stats = dict(skipped_sources=[n for n in SOURCES if n not in man], dropped_overlap=0, relabelled_by_guard=0)
 
+    erng = random.Random(SEED + 1)     # eval-only rows get their own RNG, so they don't shift when the train mix grows
+
     def route_row(name, q, label, use):
         nq = MD.norm(q); w = set(nq.split())
         if not nq or nq in banned or any(len(w & h) / max(1, len(w | h)) >= 0.8 for h in hard): stats["dropped_overlap"] += 1; return None
         banned.add(nq)
-        persona = rng.choice(personas)
+        persona = (erng if use == "eval" else rng).choice(personas)
         tool, args, why = MD.base_label(label, {}, q, persona) + (None,)
         g = wb.guards(q, persona)
         if g and (tool, args.get("reason")) != ("refuse", g["intent"]):

@@ -72,6 +72,31 @@ def rules_baseline(records):
     return score(records, preds)["route"]
 
 
+def hybrid_preds(records, preds):
+    """What NP_BRAIN=finetuned in the default hybrid mode would route (same order as Agent.ask): code guard -> vague clarify ->
+    confident rules match (or a claim with no governed match) -> model, with the off-domain backstop. Route rows only."""
+    import re
+    sys.path.insert(0, os.path.join(ROOT, "finetune"))
+    import make_dataset as MD
+    from app import agent as A, conversation as CV
+    wb = MD.load("workbook"); out = []
+    for r, p in zip(records, preds):
+        if r["task"] != "route": out.append(p); continue
+        q, per = r["question"], A.resolve_persona(r["persona"])
+        g = wb.guards(q, per)
+        if g: out.append(FT.route_target("refuse", {"reason": g["intent"]})); continue
+        q = re.sub(r"<[^<>]{0,300}>", " ", q).strip() or q
+        if A.is_vague(q) and not r.get("previous"): out.append(FT.route_target("none")); continue
+        fn, conf = CV.route_scored(wb, q)
+        if (fn and conf >= A.rules_min_conf()) or (A.claimed_numbers(q) and not fn):
+            t, a = MD.rules_label(wb, q, per); out.append(FT.route_target(t, a)); continue
+        d = FT.parse_route(p, AGENTS, REGIONS)
+        if d and d["tool"] not in ("refuse", "none") and not r.get("previous") and not fn and not A.in_domain(q):
+            out.append(FT.route_target("none")); continue
+        out.append(p)
+    return out
+
+
 def print_report(rep, title="Fine-tuned model"):
     ro, an = rep["route"], rep["answer"]
     print(f"== {title} ==")

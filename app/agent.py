@@ -549,6 +549,14 @@ class Agent:
         r["suggestions"] = sug
         return r
 
+    def vague(self, q):
+        """Vague question -> clarify flow: 3 governed options to pick from, no data and never a model-written answer."""
+        r = self.unmatched(q)
+        r["text"] = ("That's a broad question, so I won't guess. Which of these do you mean? "
+                     + " ".join(f"({i + 1}) {s_}" for i, s_ in enumerate(r["suggestions"])))
+        r["clarify"] = "vague"; r["confidence"] = 0.0
+        return r
+
     def clarify(self, q, slot):
         """Clarifying question from the fine-tuned router's none + clarify. Same shape as conversation._clarify, no data.
         agent: one unnamed agent is meant -> pick an agent; topic: several asks with no main one -> 3 governed questions."""
@@ -572,24 +580,37 @@ class Agent:
         q = re.sub(r"<[^<>]{0,300}>", " ", q).strip() or q   # markup is text, never routing input (e.g. '<img onerror=alert(1)>' is not an 'alerts' question)
         claims = claimed_numbers(q)
         b = brain()
-        fn, mode, args, ft_note = None, "rules", {}, None
-        if b["kind"] == "finetuned":
-            d = FT.route(q, persona, prev, self.agents, self.regions())   # schema-checked; None on any failure
+        fn, mode, args, ft_note, ft_route = None, "rules", {}, None, None
+        if is_vague(q) and not (prev and b["kind"] == "finetuned"):   # 'How are we doing?': ask, never guess (every brain)
+            r = self.vague(q); r["mode"] = "rules (clarify)"; r["persona"] = persona
+            return r
+        use_model = b["kind"] == "finetuned"
+        if use_model and ft_mode() == "hybrid":          # rules first, model second
+            from . import conversation as CV             # lazy: conversation imports this module
+            rfn, rconf = CV.route_scored(self, q)
+            if (rfn and rconf >= rules_min_conf()) or (claims and not rfn):
+                use_model = False; mode = "rules (hybrid)"   # confident rules match, or a claim with no governed match -> claim check
+        if use_model:
+            d = FT.route(q, persona, prev, self.agents, self.regions())   # schema-checked; None on any failure (incl. FT_TIMEOUT_S)
+            ft_route = (d["tool"] if d else "invalid")
+            if (d and d["tool"] not in ("refuse", "none") and ft_mode() == "hybrid" and not prev
+                    and not self.route(q) and not in_domain(q)):
+                d, ft_note = {"tool": "none", "args": {}}, "off-domain model route ignored"   # e.g. a joke routed to a data tool
             if d and d["tool"] == "refuse":              # the model may refuse MORE than the guards, never less
                 r = self.refusal(d["args"]["reason"], persona); r["mode"] = b["label"] + " (refuse)"; r["persona"] = persona
-                return r
+                r["ft_route"] = ft_route; return r
             if d and d["tool"] == "none" and d["args"].get("clarify"):   # ask instead of guessing (no rules fallback)
                 r = self.clarify(q, d["args"]["clarify"]); r["mode"] = b["label"] + " (clarify)"; r["persona"] = persona
-                return r
+                r["ft_route"] = ft_route; return r
             if d and d["tool"] != "none":
                 fn, args, mode = d["tool"], d["args"], b["label"]
-            ft_note = "model said none" if d else "invalid model output"
-        elif b["kind"] != "rules":
+            ft_note = ft_note or ("model said none" if d else "invalid model output or timeout")
+        elif b["kind"] not in ("rules", "finetuned"):
             fn = b["route"](q, list(INTENT_HELP))        # the model only picks a governed tool
             if fn: mode = b["label"]
         if not fn:
             fn = self.route(q)                           # automatic fallback: deterministic router
-            if b["kind"] != "rules": mode = "rules (fallback)"
+            if b["kind"] != "rules" and mode == "rules": mode = "rules (fallback)"
         if fn and persona == LEAST_PRIVILEGE and fn not in PUBLIC_INTENTS:
             r = self.no_role()
         elif not fn:
@@ -603,7 +624,7 @@ class Agent:
             finally:
                 self._ctx.args = None
             if (b["kind"] == "finetuned" and mode == b["label"] and r["type"] in ("answer", "caveat") and not claims
-                    and os.environ.get("FT_ANSWER", "1") != "0"):
+                    and os.environ.get("FT_ANSWER", "0") == "1"):   # default off: model routes, the template writes the text
                 txt, why = FT.answer(q, persona, r)      # model writes the text; every number must be in the governed result
                 if txt:
                     r["template_text"], r["text"], r["answer_by"] = r["text"], txt, "model (number-checked)"
@@ -612,6 +633,7 @@ class Agent:
         if claims:                                       # a user-typed number is never echoed as fact (template text only)
             r = self._claim_check(r, claims)
         if ft_note and mode == "rules (fallback)": r["fallback_reason"] = ft_note
+        if ft_route: r["ft_route"] = ft_route
         r["mode"] = mode
         r["persona"] = persona
         return r
@@ -635,6 +657,66 @@ class Agent:
         else:
             r["text"] = f"Claim check: {', '.join(same)} matches the governed figure. " + r["text"]
         return r
+
+
+# ---------- hybrid routing helpers (NP_BRAIN=finetuned) ----------
+# Governed-domain vocabulary. Used for two code checks: (1) a short question with NO domain word that just asks for a
+# status ("How are we doing?") is vague -> clarify with 3 governed options, never a model-written answer; (2) when the rules
+# engine has no match, a model data-tool route for an off-domain question (no domain word, no previous question) is ignored.
+# Tuned on the TRAIN split only (it keeps 98% of train questions the rules miss but the model should route).
+DOMAIN = (r"seat|licen[cs]|utili[sz]|\butil\b|adopt|uptake|usage|\buse|using|user|active|activ|agent|\bbots?\b|assistant|copilot|\bai\b|tool|"
+          r"renew|contract|vendor|supplier|procure|region|market|countr|team|group|squad|pod|data|dashboard|figure|number|metric|score|index|"
+          r"formula|average|error|fail|flak|reliab|stable|dependab|connector|integration|plumbing|hook|time|hours?\b|sav|cost|money|spend|"
+          r"budget|bill|value|worth|roi|trend|novelty|wearing off|interest|week|month|quarter|period|staff|people|ppl|employee|workforce|"
+          r"rollout|launch|pilot|training|enablement|registry|governance|sign.?off|shadow|kyc|fraud|onboard|summar|x9|\bm\d\d\b|interaction|"
+          r"event|log|report|exec|leadership|cfo|coo|fresh|stale|up to date|lag|behind|alert|worry|risk|flag|fire|cohort|engineer|no.?code|"
+          r"citizen|drag|build|login|logged|idle|unused|dormant|shelf|reclaim|hand back|trim")
+_DOMAIN_KW = sorted(set(re.findall(r"[a-z]{5,}", DOMAIN)))
+VAGUE_ASK = (r"\b(how (are|is) (we|it|things|everything|stuff|that|this)\b|how'?s (it|everything|things) going|status|thoughts|verdict|story|"
+             r"overview|summary|update|numbers|anything (new|interesting)|what'?s (up|new|happening)|where are we|how did we do|how we doing)")
+
+
+def in_domain(q):
+    """True if the question mentions anything from the governed domain (exact vocabulary, suggestion words, or a 1-typo match)."""
+    import difflib
+    ql = q.lower()
+    if re.search(DOMAIN, ql): return True
+    ws = re.findall(r"[a-z0-9]+", ql)
+    if {_stem(w) for w in ws if len(w) > 3 and w not in STOP and w not in _GENERIC} & _suggest_vocab(): return True
+    return any(difflib.get_close_matches(w, _DOMAIN_KW, n=1, cutoff=0.8) for w in ws if len(w) >= 5)
+
+
+_SUGGEST_VOCAB = []
+_GENERIC = {"going", "have", "there", "their", "would", "could", "should", "from", "into", "than", "then", "they", "them", "were",
+            "been", "more", "most", "over", "down", "back", "right", "real", "really", "only", "best", "when", "where", "things", "anything"}
+
+
+def _suggest_vocab():
+    if not _SUGGEST_VOCAB:
+        v = set()
+        for s_, kw in SUGGEST: v |= {_stem(w) for w in re.findall(r"[a-z0-9]+", (s_ + " " + kw).lower()) if len(w) > 3 and w not in STOP}
+        _SUGGEST_VOCAB.append(v)
+    return _SUGGEST_VOCAB[0]
+
+
+def is_vague(q):
+    """Short status-style question with no topic, metric or agent: 'How are we doing?', 'status?', 'thoughts?'."""
+    ql = q.lower().strip()
+    return (len(re.findall(r"[a-z0-9']+", ql)) <= 6 and bool(re.search(VAGUE_ASK, ql)) and not in_domain(ql)
+            and not claimed_numbers(q))
+
+
+def ft_mode():
+    """NP_BRAIN=finetuned routing mode: 'hybrid' (default: rules first, model second) or 'pure' (model first, for comparison)."""
+    return "pure" if os.environ.get("FT_MODE", "hybrid").lower() == "pure" else "hybrid"
+
+
+def rules_min_conf():
+    """A rules match at or above this match quality (conversation.route_scored) is 'confident' and never goes to the model.
+    0.65 is the lowest score any golden / probe / unscripted / break-it question gets (A11 'Which seats can we take back
+    at renewal?'), so all of them stay with rules. Below it are general patterns that also hit 3+ other tools (0.6)."""
+    try: return float(os.environ.get("FT_RULES_MIN_CONF", "0.65"))
+    except ValueError: return 0.65
 
 
 def claimed_numbers(q):

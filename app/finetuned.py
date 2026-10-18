@@ -101,14 +101,33 @@ def gold_answer(r):
 
 
 # ---------- model I/O ----------
-def _ollama_chat(messages, kind):
+def _ollama_chat(messages, kind, timeout=None):
     from .agent import _http_json, ollama_host
     h = ollama_host(); h = h if h.startswith("http") else "http://" + h
     body = {"model": ft_model(), "stream": False, "messages": messages,
             "options": {"temperature": 0, "num_predict": 96 if kind == "route" else 220}}
     if kind == "route": body["format"] = "json"
-    out = _http_json(h + "/api/chat", body, timeout=float(os.environ.get("OLLAMA_TIMEOUT", "30")))
+    body["keep_alive"] = os.environ.get("FT_KEEP_ALIVE", "30m")       # keep the model loaded between questions
+    out = _http_json(h + "/api/chat", body, timeout=timeout or ft_timeout())
     return out["message"]["content"]
+
+
+def ft_timeout():
+    """Per-call timeout in seconds (FT_TIMEOUT_S, default 4). On timeout the Agent falls back to the rules engine."""
+    try: return float(os.environ.get("FT_TIMEOUT_S", "4"))
+    except ValueError: return 4.0
+
+
+def warmup(timeout=120):
+    """Load the model into memory once (first call can take tens of seconds on a laptop). Returns seconds, or None on failure."""
+    import time
+    t = time.time()
+    try:
+        (FT_GENERATE or _ollama_chat)(route_messages("What is licence utilisation this month?", "executive"), "route",
+                                      **({} if FT_GENERATE else {"timeout": timeout}))
+        return round(time.time() - t, 2)
+    except Exception:
+        return None
 
 
 def generate(messages, kind):

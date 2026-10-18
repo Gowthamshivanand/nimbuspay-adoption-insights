@@ -53,6 +53,17 @@ app = FastAPI(title="NimbusPay Adoption Insights", version=__version__)
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 
 
+def _warm_finetuned():
+    """NP_BRAIN=finetuned: load the model in the background at startup so the first question isn't slow (keep_alive keeps it)."""
+    import threading
+    from . import finetuned as FT
+    if os.environ.get("NP_BRAIN", "").lower() == "finetuned" and os.environ.get("FT_WARMUP", "1") != "0":
+        threading.Thread(target=lambda: FT.ready() and FT.warmup(), daemon=True).start()
+
+
+_warm_finetuned()
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     return FileResponse(os.path.join(HERE, "static", "index.html"))

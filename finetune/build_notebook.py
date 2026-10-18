@@ -16,11 +16,11 @@ Synthetic hobby case study. The NimbusPay data is synthetic and English only. Wi
 
 The app keeps the safety architecture: code guards run first, the JSON is schema-checked, every number in an answer must be in the governed result, and anything that fails falls back to the rules engine.
 
-**How to run:** `Runtime > Change runtime type > T4 GPU`, then `Runtime > Run all`. Training time is estimated, not measured: about 6k synthetic + 2.7k public rows is ~2.9M tokens per epoch, so 1.5B with 2 epochs is roughly 45 to 90 minutes on a T4 (set `EPOCHS = 1` to halve it, or `USE_PUBLIC = False` to cut ~a third). At the end you get a GGUF file and an Ollama `Modelfile`.
+**How to run:** `Runtime > Change runtime type > T4 GPU`, then `Runtime > Run all`. Training time is estimated, not measured (run 1 did not log it; this run records `train_minutes` in the report): 7,270 synthetic + 2,892 public rows is ~3.2M tokens per epoch, about 20% more than run 1, so 1.5B with 2 epochs is roughly 55 to 105 minutes on a T4 (set `EPOCHS = 1` to about halve it, or `USE_PUBLIC = False` to cut ~a quarter).\n\n**Run 2 = retrain from base.** The notebook always starts from the base model with a fresh LoRA. Resuming the run-1 adapter is not offered on purpose: the data mix changed, a resumed run would need its own LR schedule, and a fresh 2-epoch run is simpler and reproducible. Just `Run all` again with the defaults. At the end you get a GGUF file and an Ollama `Modelfile`.
 """)
 md("## 1. Settings (the model switch is here)")
 code(r'''
-MODEL_CHOICE = "1.5B"     # "1.5B" (default: fp16 LoRA, ~45-90 min for 2 epochs, estimate)  or  "7B" (4-bit QLoRA, ~3.5-6 h for 1 epoch with public data, often past a free Colab session: use USE_PUBLIC=False there, ~2.5-4 h)
+MODEL_CHOICE = "1.5B"     # "1.5B" (default: fp16 LoRA, ~55-105 min for 2 epochs, estimate; always a fresh LoRA from base)  or  "7B" (4-bit QLoRA, ~3.5-6 h for 1 epoch with public data, often past a free Colab session: use USE_PUBLIC=False there, ~2.5-4 h)
 EPOCHS = None             # None = 2 for 1.5B, 1 for 7B. EPOCHS = 1 halves the time
 USE_PUBLIC = True         # add finetune/data/public_train.jsonl (attributed public sample, CC-BY-SA-4.0 as a combined file)
 PUSH_TO_HF = False        # True = upload model + dataset to YOUR Hugging Face account (asks for a token, never stored here)
@@ -183,21 +183,26 @@ for task in ("route", "answer"):
 print(f"generated {len(test)} in {time.time() - t0:.0f}s")
 pub_preds = []
 for s in range(0, len(public_eval), B): pub_preds += generate_batch([r["messages"][:-1] for r in public_eval[s:s + B]], MAXNEW["route"])
-REPORT = dict(base_model=BASE_MODEL, qlora=QLORA, epochs=EPOCHS, train_rows=len(train), use_public=USE_PUBLIC, smoke=SMOKE, model=E.score(test, preds),
+REPORT = dict(base_model=BASE_MODEL, qlora=QLORA, epochs=EPOCHS, train_rows=len(train), use_public=USE_PUBLIC, smoke=SMOKE,
+              train_minutes=round(TRAIN_MIN, 1), train_tokens=sum(lens), model=E.score(test, preds),
               rules_on_same_route_rows=E.rules_baseline(test), public_eval=E.score(public_eval, pub_preds)["route"])
 E.print_report(REPORT["model"])
 pe = REPORT["public_eval"]; print(f"\nPublic eval-only set (XSTest / When2Call / CLINC, n={pe['n']}): tool acc {pe['tool_acc']}%, refusal recall {pe['refusal_recall']}%, over-refusals {pe['over_refusals']}")
-print("\nRules engine on the same route rows: tool acc", REPORT["rules_on_same_route_rows"]["tool_acc"], "%")
+REPORT["hybrid_route"] = E.score(test, E.hybrid_preds(test, preds))["route"]
+print("\nHybrid (default app mode: guards, confident rules match, model for the rest): tool acc", REPORT["hybrid_route"]["tool_acc"],
+      "%  unsafe routes", REPORT["hybrid_route"]["unsafe_routes"])
+print("Rules engine on the same route rows: tool acc", REPORT["rules_on_same_route_rows"]["tool_acc"], "%")
 for r, p in list(zip(test, preds))[:6]: print(f"[{r['task']}] {r['question'][:70]!r}\n   gold: {r['messages'][-1]['content'][:120]}\n   pred: {p[:120]}")
 ''')
-md("## 9. Release gate, end to end through the real Agent (guards first)\nShip only if: golden and the 29 probes >= rules, the 64 unscripted >= rules, 0 unsafe answers, 100% number faithfulness. Latency here is on the Colab GPU with transformers, not on your PC.")
+md("## 9. Release gate, end to end through the real Agent (guards first)\nShip only if: golden and the 29 probes >= rules, the 64 unscripted and 22 break-it >= rules, 0 unsafe answers, 100% number faithfulness. Run for the default **hybrid** mode (rules first, model second; this decides) and for **pure** (model first, comparison only). Routing only (`FT_ANSWER=0`, the app default). Latency here is on the Colab GPU with transformers, not on your PC.")
 code(r'''
 import eval_finetuned as EF
 FT.FT_GENERATE = lambda messages, kind: generate_batch([messages], MAXNEW[kind])[0]   # plug this model into the app's finetuned brain
-if SMOKE: os.environ["FT_ANSWER"] = "0"      # CPU smoke run: routing only, to keep it short
-rules = EF.run_suite("rules"); ft = EF.run_suite("finetuned")
-GATE_PASS = EF.print_gate(ft, rules)
-REPORT.update(gate_rules=rules, gate_finetuned=ft, gate=EF.gate(ft, rules)[1], gate_pass=GATE_PASS)
+os.environ["FT_ANSWER"] = "0"                # app default: the model routes, the governed template writes the text
+rules = EF.run_suite("rules"); ft = EF.run_suite("finetuned", "hybrid"); ft_pure = EF.run_suite("finetuned", "pure")
+GATE_PASS = EF.print_gate(ft, rules); EF.print_gate(ft_pure, rules)
+REPORT.update(gate_rules=rules, gate_finetuned=ft, gate_finetuned_pure=ft_pure, gate=EF.gate(ft, rules)[1], gate_pass=GATE_PASS,
+              gate_pure=EF.gate(ft_pure, rules)[1])
 json.dump(REPORT, open(os.path.join(WORK, "eval_report.json"), "w"), indent=1)
 FT.FT_GENERATE = None; os.environ["NP_BRAIN"] = "rules"
 ''')

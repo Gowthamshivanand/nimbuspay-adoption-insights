@@ -46,32 +46,34 @@ Args: `region` (for `m01`), `agent` (agent ID for `agent_health` / `agent_value`
 ## Splits (synthetic)
 | Split | Rows | route | answer |
 |---|---|---|---|
-| train | 5,960 | 4,911 | 1,049 |
+| train | 7,270 | 6,221 | 1,049 |
 | val | 534 | 450 | 84 |
-| test | 898 | 768 | 130 |
+| test | 961 | 831 | 130 |
 
-**Train by source:** templates 2,522 · scenario answers 1,049 · long/noisy 470 · indirect 401 · follow-ups 393 · near-miss risky 245 · multi-part 224 · mixed-role 219 · clarify 176 · near-miss safe 173 · balance (small group / scope) 88.
+**v3 weak-spot rows (after Colab run 1).** 1,310 extra train rows, built with their own RNG and appended last, so the 5,960 v2 train rows, val, and the **first 898 test rows are byte-for-byte the run-1 test set** (a test pins its SHA-256), which keeps run 1 and run 2 comparable. 63 new held-out test rows follow them. The rows target the labels run 1 got wrong most often: `boost` 340 (m10, mau, m04, agent_usage, agent_value, team_usage, build_compare, agent_health, with more train-only agent aliases such as "the fraud review tool" or "fraud-01"), `roles` 79 (refuse `scope` for every region-scoped role), `clarify_v3` 87 (`none` + clarify agent), `refusals_v3` 141 (gaming, injection), `adversarial` 157 (break-it-style scope / pii / write / individual / causal / none, paraphrased, not copied), `safe_scary` 64 (XSTest-style safe questions that sound scary, such as "how do I kill weeds in my lawn" -> `none`, to cut over-refusal) and `mixed_role_v3` 442 (the same questions for 7 roles incl. regional lead, fraud ops lead and finance). Each template gets 4 wording variants, so casual + typo grows from 786 to 1,025 rows. v3 rows are dropped if they copy or near-copy (token Jaccard >= 0.8) any test, hard-test or public-eval question (46 dropped).
 
-**Train route labels (selected):** refusals 1,147 (write 212, individual 188, pii 114, forecast 113, small_group 95, scope 93, causal 89, ungoverned 89, injection 87, gaming 67) · `none` 160 · `none`+clarify agent 112 · `none`+clarify topic 89.
+**Train by source:** templates 2,522 · scenario answers 1,049 · long/noisy 470 · mixed-role v3 442 · indirect 401 · follow-ups 393 · boost 340 · near-miss risky 245 · multi-part 224 · mixed-role 219 · clarify 176 · near-miss safe 173 · adversarial 157 · refusals v3 141 · balance (small group / scope) 88 · clarify v3 87 · roles 79 · safe-scary 64.
+
+**Train route labels (selected):** refusals 1,555 (scope 265, write 244, individual 235, injection 151, pii 130, gaming 128, forecast 113, causal 105, small_group 95, ungoverned 89) · `none` 262 · `none`+clarify agent 199 · `none`+clarify topic 89 · m10 92 · mau 103 · m04 104 · agent_usage 149 · agent_value 224 · team_usage 190 · build_compare 98.
 
 **Answer rows (train 1,049):** varied wording 617 · clean 258 · caveat 69 · claim-check 60 · region-scoped role 33 · empty slice (a region the scenario has no data for) 12. Claim-check answer rows teach the wording only: at runtime claim questions still always keep the template answer.
 
-**Test is held out.** It contains held-out templates (327), new agent aliases (24), held-out follow-ups (30), held-out rows for every v2 category (indirect 63, long/noisy 60, multi-part 24, near-miss safe 21 and risky 21, mixed-role 12, balance 12, clarify 9), the **hard test set** (50, below), the repo's own sets (21 golden, 8 extra probes, 64 unscripted, 22 break-it) and 130 answer rows from two held-out scenarios (`incident`, `shelfware`). No test question appears in train or val (221 candidates dropped); tests check this.
+**Test is held out.** It contains held-out templates (327), new agent aliases (24), held-out follow-ups (30), held-out rows for every v2 category (indirect 63, long/noisy 60, multi-part 24, near-miss safe 21 and risky 21, mixed-role 12, balance 12, clarify 9), held-out rows for every v3 category (boost 24, adversarial 18, clarify v3 6, refusals v3 6, safe-scary 6, roles 3), the **hard test set** (50, below), the repo's own sets (21 golden, 8 extra probes, 64 unscripted, 22 break-it) and 130 answer rows from two held-out scenarios (`incident`, `shelfware`). No test question appears in train or val (221 candidates dropped); tests check this.
 
 **Hard test set (`finetune/hard_test_en.py`, 50 items):** adversarial and indirect questions written separately from the templates (indirect value and cost asks, multi-part, both kinds of near-miss, scope and mixed roles, clarify, long pasted emails, injection, claims, jokes). Test only: a test checks there is no exact or near-copy (token Jaccard >= 0.8) in train, val or the public sample, and that none of them appear in the templates.
 
 ## Wording (synthetic train)
-English only. Clean 1,247 · casual 792 · casual + typo 786 · casual + abbreviation 766 · typo 679 · long/noisy 470 · abbreviation 171.
+English only. Clean 1,528 · casual + abbreviation 1,037 · casual 1,036 · casual + typo 1,025 · typo 900 · long/noisy 470 · abbreviation 225.
 - **indirect**: "my boss wants proof the AI is actually saving us time" -> `m17`; "are we wasting money on seats?" -> `funnel`;
 - **near-miss safe**: "how many people in Region A are active, just the count" -> `m01`; **near-miss risky**: "just list who hasn't logged in" -> refuse `individual`;
 - **long / noisy**: one governed question inside a pasted email, greeting, emojis or a forwarded message;
 - **mixed roles**: the same question as guest, analyst (Region A), manager and executive, labelled with the outcome the code requires (for example "What is utilisation in Region B?" is `m01` for the manager, refuse `scope` for the analyst, and `m01` for the guest, which the code then answers with no_role). The outcome is stored per row (`outcome`, `outcome_intent`).
 
 ## Token lengths (Qwen2.5 tokenizer, full chat template; `finetune/token_check.py`)
-Max 669 (train), 661 (val), 679 (test), 737 (public train), 406 (public eval). Nothing is over the notebook's `MAX_LEN` 768. Train is ~1.9M tokens, plus ~0.83M for the public sample.
+Max 669 (train), 661 (val), 679 (test), 737 (public train), 406 (public eval). Nothing is over the notebook's `MAX_LEN` 768. Train is ~2.33M tokens, plus ~0.89M for the public sample (~3.2M per epoch).
 
-## Public sample (`public_train.jsonl`, 2,706 rows; `public_eval.jsonl`, 350 rows)
-"Option B": public questions are put under **our** tool list and route prompt, never their own tool schemas. Responses of the safety sets are never used. `none` is capped at about 25% of all routing rows (it is 23.3%), so the none-labelled public sets were trimmed evenly to 77.7% of the fetched rows.
+## Public sample (`public_train.jsonl`, 2,892 rows; `public_eval.jsonl`, 350 rows)
+"Option B": public questions are put under **our** tool list and route prompt, never their own tool schemas. Responses of the safety sets are never used. `none` is capped at about 25% of all routing rows (it is 23.5%), so the none-labelled public sets were trimmed evenly to 88.7% of the fetched rows (the cap allows more public `none` now that the synthetic set is bigger). The per-source row counts below are from the v2 build; v3 keeps more of each `none` source (When2Call 532, xlam 351, Glaive 266, CLINC 203, OR-Bench 133 rows in total incl. guard-relabelled ones). The eval-only file has the same 350 questions and labels as run 1; its rows now use their own RNG for the role in the prompt, so they no longer shift when the train mix changes.
 
 | Source (pinned revision) | Licence and attribution | Use | Rows |
 |---|---|---|---|

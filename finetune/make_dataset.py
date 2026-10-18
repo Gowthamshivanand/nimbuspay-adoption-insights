@@ -20,6 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path[:0] = [ROOT, HERE]
 from app import pipeline as P, agent as A, finetuned as FT, conversation as CV
 from templates_en import T, AGENT_REFS, REGION_REFS, FOLLOWUPS, CLAIMS, CATS, WRAPPERS, MIXED_ROLE, MIXED_PERSONAS
+from templates_en import AGENT_REFS_V3, CATS_V3, MIXED_ROLE_V3, MIXED_PERSONAS_V3
 from hard_test_en import HARD_TEST                       # test split only; overlap with train/val is filtered and tested
 
 SEED = 20261018
@@ -37,7 +38,7 @@ def load(name):
     if name == "workbook":
         d, o = os.path.join(ROOT, "app", "data", "base"), {}
     else:
-        d = os.path.join(ROOT, "app", "data", "scenarios", name); o = json.load(open(os.path.join(d, "outcomes.json")))
+        d = os.path.join(ROOT, "app", "data", "scenarios", name); o = json.load(open(os.path.join(d, "outcomes.json"), encoding="utf-8"))
     return A.Agent(*P.run(P.load(rd(os.path.join(d, "events.csv")), rd(os.path.join(d, "seats.csv")), rd(os.path.join(d, "registry.csv")), o)))
 
 
@@ -151,12 +152,13 @@ def main():
     rng = random.Random(SEED)
     wb = load("workbook")
     agent_train = {k: v[0] for k, v in AGENT_REFS.items()}; agent_test = {k: v[1] for k, v in AGENT_REFS.items()}
+    agent_v3 = {k: v[0] + AGENT_REFS_V3.get(k, []) for k, v in AGENT_REFS.items()}     # v3: more train-only alias forms
     stats = Counter(); disagree = []; relabelled = []
 
     # ---- held-out evaluation sets from the repo: golden 21, extra probes 8, unscripted 64 ----
     sys.path.insert(0, os.path.join(ROOT, "tools")); import probe_check as PC
     held = [(cid, q, per, "golden" if cid.startswith("Q") else "probe_extra", t) for cid, q, per, t, _ in PC.golden_cases()]
-    pr = json.load(open(os.path.join(ROOT, "tests", "data", "probes.json")))
+    pr = json.load(open(os.path.join(ROOT, "tests", "data", "probes.json"), encoding="utf-8"))
     held += [(p["id"], p["q"], p.get("persona", "executive"), "unscripted", p["expect"]) for p in pr["panel24"] + pr["extra"]]
     bi = json.load(open(os.path.join(ROOT, "tests", "data", "break_it.json"), encoding="utf-8"))["cases"]
     held += [(c["id"], c["q"], c["persona"], "break_it", c["expect_type"]) for c in bi]
@@ -165,6 +167,8 @@ def main():
         tool, args = rules_label(wb, q, per)
         test.append(route_rec(q, A.resolve_persona(per), tool, args, "test", src, "repo", extra=dict(ref_id=hid, expect=expect)))
     banned = {norm(r["question"]) for r in test}
+    pe = os.path.join(OUT, "public_eval.jsonl")             # never train on (near-)copies of the eval-only public items either
+    pub_eval_norm = [set(norm(json.loads(l)["question"]).split()) for l in open(pe, encoding="utf-8")] if os.path.exists(pe) else []
 
     hard_norm = []
     for item in HARD_TEST:
@@ -186,7 +190,7 @@ def main():
         return tool, a2, None
 
     # ---- template questions ----
-    def gen(label, tpl, split, source, k, agent_pool, region_pool, out, personas=None, nvar=3):
+    def gen(label, tpl, split, source, k, agent_pool, region_pool, out, personas=None, nvar=3, rng=rng):
         if isinstance(tpl, tuple): tpl, metric = tpl
         else: metric = None
         for _ in range(max(1, k // nvar)):
@@ -356,6 +360,43 @@ def main():
     train += ans_train; val += ans_val; test += ans_test
     rng.shuffle(train)
 
+    # ---- v3 weak-spot boost (after Colab run 1). Own RNG and appended LAST, so every row above (and so the whole run-1
+    # test set) is byte-for-byte unchanged and run 1 vs run 2 stay comparable. New held-out rows are added to test. ----
+    rng3 = random.Random(SEED + 3); add_tv, add_test = [], []
+    V3_REPS = dict(boost=8, roles=8, clarify_v3=8, refusals_v3=8, adversarial=8, safe_scary=4)
+    for cat, d in CATS_V3.items():
+        for label, (tr_, te_) in d.items():
+            per = sorted(SCOPED) if label == "refuse:scope" else None
+            for tpl in tr_:      # 4 variants each, so casual+typo wording gets more rows
+                gen(label, tpl, "trainval", cat, V3_REPS[cat], agent_v3, REGION_REFS, add_tv, personas=per, nvar=4, rng=rng3)
+            for tpl in te_:
+                gen(label, tpl, "test", "heldout_" + cat, 3, agent_test, REGION_REFS, add_test, personas=per, rng=rng3)
+    for qs, pers in ((MIXED_ROLE_V3, MIXED_PERSONAS_V3), (MIXED_ROLE[0], [p for p in MIXED_PERSONAS_V3 if p not in MIXED_PERSONAS])):
+        for q0 in qs:            # mixed roles with every role incl. regional lead / fraud ops lead / finance
+            for persona in pers:
+                tool, args = rules_label(wb, q0, persona)
+                assert tool != "none", q0
+                lab = "refuse:" + args["reason"] if tool == "refuse" else tool
+                r = wb.ask(q0, persona); meta = dict(outcome=r["type"], outcome_intent=r["intent"])
+                for v, style in variants(q0, 4, rng3):
+                    t, a, _ = label_for(v, lab, args, persona) if style != "clean" else (tool, args, None)
+                    add_tv.append(route_rec(v, persona, t, a, "trainval", "mixed_role_v3", style, extra=meta))
+    test_keys = {norm(r["question"]) + "|" + str(r["previous"]) for r in test}
+    seen = {norm(r["question"]) + "|" + str(r["previous"]) + r["persona"] for r in train + val}
+    for r in add_test:
+        k = norm(r["question"]) + "|" + str(r["previous"])
+        if k + r["persona"] in seen or k in test_keys: continue
+        test_keys.add(k); test.append(r)
+    v3 = []
+    for r in add_tv:
+        key = norm(r["question"]) + "|" + str(r["previous"]); w = set(norm(r["question"]).split())
+        if key in test_keys or norm(r["question"]) in banned: stats["v3_dropped_overlap_with_test"] += 1; continue
+        if any(len(w & h) / max(1, len(w | h)) >= 0.8 for h in hard_norm + pub_eval_norm): stats["v3_dropped_near_hard_or_public_eval"] += 1; continue
+        if key + r["persona"] in seen: continue
+        seen.add(key + r["persona"]); v3.append(dict(r, split="train"))
+    stats["v3_train_rows"] = len(v3)
+    train = train + v3; rng3.shuffle(train)
+
     os.makedirs(OUT, exist_ok=True)
     for name, rows in (("train", train), ("val", val), ("test", test)):
         with open(os.path.join(OUT, name + ".jsonl"), "w", encoding="utf-8") as f:
@@ -371,7 +412,7 @@ def main():
     st = dict(seed=SEED, language="English only (synthetic)", train=summ(train), val=summ(val), test=summ(test),
               notes=dict(stats), sizes_bytes={n: os.path.getsize(os.path.join(OUT, n + ".jsonl")) for n in ("train", "val", "test")},
               sample_rules_disagreements=disagree[:60], relabelled_by_guard=relabelled)
-    json.dump(st, open(os.path.join(OUT, "stats.json"), "w"), indent=1)
+    json.dump(st, open(os.path.join(OUT, "stats.json"), "w", encoding="utf-8"), indent=1)
     print(json.dumps({k: st[k] for k in ("train", "val", "test", "notes", "sizes_bytes")}, indent=1))
 
 
