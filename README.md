@@ -8,6 +8,16 @@ A self-contained, offline, single-file prototype for the NimbusPay "Adoption Mir
 
 ## Live product (`app/`): a real, runnable Adoption Insights product
 
+**Model licence:** the demo default `qwen2.5:3b-instruct` is research-licence only (no commercial use). Production uses an Apache 2.0 Qwen 2.5 size (1.5B or 7B), chosen by re-running the agent test:
+
+```bash
+ollama pull qwen2.5:7b-instruct
+OLLAMA_MODEL=qwen2.5:7b-instruct NP_BRAIN=ollama python tools/eval_agent.py --brain ollama   # must pass before switching
+OLLAMA_MODEL=qwen2.5:7b-instruct python -m app
+```
+
+**Operations:** see [docs/RUNBOOK.md](docs/RUNBOOK.md) for SLOs, alerts, on-call playbooks, rollback and the DEV -> staging -> prod release flow. The live app has a **Cost and scale** tab (`/api/cost`, `app/costcalc.py`): every default is a labelled assumption and every price is a cited public list price.
+
 The repo now holds two things:
 1. **The live product** (`app/`): a Python backend with a real data pipeline, a local SQL warehouse, a working read-only **Adoption Insights Agent**, dashboards, alerts, scenario compare, a one-click board pack and an audit log. Runs on a laptop with no internet, no API key and no paid service.
 2. **The static prototype** (`index.html`): the single-file demo for GitHub Pages and offline use (unchanged, see below).
@@ -121,7 +131,7 @@ Upload your own `events.csv`, `seats.csv` and `registry.csv` on the **Data** tab
 ### Tests
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                      # 159 tests: pipeline + agent + probes + persona + API + Playwright UI smoke test
+python -m pytest -q                      # 164 tests in CI (158 before + 6 cost-calculator tests) plus a browser walkthrough (Playwright); then the agent test gate: tools/eval_agent.py
 ```
 The UI test needs a Chrome/Chromium (set `CHROME_PATH` if it isn't at `/usr/bin/google-chrome`) and writes `docs/screenshots/app-*.png`; it skips if Playwright is missing.
 

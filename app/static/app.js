@@ -1,7 +1,7 @@
 /* NimbusPay Adoption Insights UI. Talks to the FastAPI backend; all data synthetic. */
 const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const api = async (p, o) => { const r = await fetch(p, o); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); };
-const TABS = [["data","Data"],["exec","Executive"],["whatif","What-if"],["seats","Seats and bill"],["region","Regional"],["eng","Engineering"],["agent","Agent"],["alerts","Alerts"],["compare","Compare"],["pack","Board pack"],["audit","Audit log"]];
+const TABS = [["data","Data"],["exec","Executive"],["whatif","What-if"],["seats","Seats and bill"],["region","Regional"],["eng","Engineering"],["agent","Agent"],["alerts","Alerts"],["compare","Compare"],["pack","Board pack"],["audit","Audit log"],["cost","Cost and scale"]];
 let ST = null, TAB = "data", SCEN = [], CHAT = [];
 const fmt = (v, u) => v === null || v === undefined ? "withheld" : v + (u === "%" ? "%" : "");
 const oc = o => "o-" + String(o).split(" ")[0];
@@ -20,6 +20,30 @@ function bars(rows, max) { return rows.map(([l, v, n]) => `<div class="row"><spa
 async function loadScenario(k) { ST = await api("/api/load/" + k, {method: "POST"}); CHAT = []; show(TAB === "data" ? "exec" : TAB); }
 
 const R = {
+async cost() {
+  const M = await api("/api/cost"), d = M.defaults, money = v => "$" + Number(v).toLocaleString(undefined, {maximumFractionDigits: 2});
+  $("#view").innerHTML = `<h1>Cost and scale calculator</h1><p class="muted">Unit economics of the Adoption Insights Agent. Defaults are <b>assumptions</b>, prices are cited public list prices. Not NimbusPay figures.</p>
+  <div class="grid"><div class="card" style="grid-column:span 2"><div class="grid">
+   <label>Users <span class="tag">assumption</span><br><input type="number" id="c-users" data-testid="c-users" min="0" value="${d.users}" style="width:100%"></label>
+   <label>Questions per user per day <span class="tag">assumption</span><br><input type="number" id="c-qpud" min="0" step="0.5" value="${d.queries_per_user_day}" style="width:100%"></label>
+   <label>Answered by rules engine: <b id="cv-rules">${Math.round(d.rules_share * 100)}%</b> <span class="tag">assumption</span><br><input type="range" id="c-rules" data-testid="c-rules" min="0" max="100" value="${Math.round(d.rules_share * 100)}" style="width:100%"></label>
+   <label>Model for the LLM share<br><select id="c-model" data-testid="c-model" style="width:100%">${Object.entries(M.models).map(([k, v]) => `<option value="${k}" ${k === d.model ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>
+   <label>Avg tokens in <span class="tag">assumption</span><br><input type="number" id="c-tin" min="0" value="${d.tokens_in}" style="width:100%"></label>
+   <label>Avg tokens out <span class="tag">assumption</span><br><input type="number" id="c-tout" min="0" value="${d.tokens_out}" style="width:100%"></label></div></div>
+  <div class="card outcard" id="c-out" data-testid="c-out"></div></div>
+  <h2>Assumptions</h2><table>${M.assumptions.map(a => `<tr><td>${esc(a.key)}</td><td>${esc(a.value)}</td><td class="muted">${esc(a.note)}</td></tr>`).join("")}</table>
+  <h2>Sources (checked ${esc(M.sources.S13.checked)})</h2><table>${Object.entries(M.sources).map(([k, s]) => `<tr><td>${k}</td><td>${esc(s.label)}<div class="muted" style="font-size:12px">${esc(s.url)}</div></td></tr>`).join("")}</table>`;
+  const run = async () => {
+    $("#cv-rules").textContent = $("#c-rules").value + "%";
+    const body = {users: +$("#c-users").value, queries_per_user_day: +$("#c-qpud").value, rules_share: +$("#c-rules").value / 100, model: $("#c-model").value, tokens_in: +$("#c-tin").value, tokens_out: +$("#c-tout").value};
+    try { const r = await api("/api/cost", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+      $("#c-out").innerHTML = `<div class="muted">Monthly cost (USD, list price)</div><div class="out" data-testid="c-monthly">${money(r.monthly_cost_usd)}</div>
+       <p>Cost per question: <b>${r.cost_per_query_usd === null ? "n/a" : "$" + r.cost_per_query_usd}</b><br>Estimated p95 latency: <b>${r.p95_latency_s} s</b> <span class="tag">${esc(r.p95_basis)}</span><br>
+       Model hosts needed: <b>${r.model_instances}</b> + app hosts: <b>${r.app_instances}</b></p>
+       <p class="muted" style="font-size:12px">${r.queries_per_day} questions/day, ${r.llm_queries_per_day} to the LLM. App host ${money(r.app_host_usd)} + model ${money(r.model_cost_usd)}. ${esc(r.note)}</p>`;
+    } catch (e) { $("#c-out").innerHTML = `<span class="red">${esc(e.message)}</span>`; } };
+  document.querySelectorAll("#view input, #view select").forEach(el => el.oninput = run); run();
+},
 async whatif() {
   const f = ST.funnel;
   $("#view").innerHTML = `<h1>Renewal what-if simulator</h1><p class="muted">Re-runs the same pipeline and renewal rules on a modified copy of ${esc(ST.dataset_label)}. Not a forecast. Synthetic.</p>

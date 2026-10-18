@@ -4,7 +4,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import pipeline as P, agent as A, features as F, __version__
+from . import pipeline as P, agent as A, features as F, costcalc as CC, __version__
 
 HERE = os.path.dirname(__file__)
 SCEN = os.path.join(HERE, "data", "scenarios")
@@ -233,3 +233,25 @@ def reconcile_sample():
 @app.get("/api/reconcile/sample.csv")
 def reconcile_sample_csv():
     return FileResponse(os.path.join(HERE, "data", "samples", "vendor_invoice_sample.csv"), filename="vendor_invoice_sample.csv")
+
+
+class CostIn(BaseModel):
+    users: float | None = None
+    queries_per_user_day: float | None = None
+    rules_share: float | None = None
+    model: str | None = None
+    tokens_in: float | None = None
+    tokens_out: float | None = None
+
+
+@app.get("/api/cost")
+def cost_meta():
+    return CC.meta()
+
+
+@app.post("/api/cost")
+def cost(body: CostIn):
+    try:
+        return CC.calculate(**body.model_dump())
+    except CC.CalcError as e:
+        raise HTTPException(422, str(e))
