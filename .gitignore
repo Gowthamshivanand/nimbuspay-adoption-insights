@@ -6,3 +6,4 @@ app/var/
 *.xlsx
 /data/
 dist/
+finetune/eval_report.json

@@ -3,7 +3,7 @@ Runs the 21 golden questions (expected behaviour from Agent_Test_Questions, in t
 no verified outcome data), extra refusal and paraphrase probes, and the unscripted probe set in tests/data/probes.json
 (panel24 = 17 should-answer + 7 should-refuse, plus extra paraphrases, adversarial asks and role checks).
 Usage:  python tools/eval_agent.py                 # auto: Ollama if reachable, else rules
-        python tools/eval_agent.py --brain rules   # or ollama / openai
+        python tools/eval_agent.py --brain rules   # or ollama / openai / finetuned (FT_MODEL, default nimbuspay-router)
         OLLAMA_MODEL=llama3.2:3b python tools/eval_agent.py --brain ollama"""
 import argparse, json, os, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); sys.path.insert(0, ROOT)

@@ -130,13 +130,14 @@ The UI follows the deck's brand: white background, charcoal `#222222`, orange `#
 |---|---|---|
 | Open model (default when available) | Ollama answers at `OLLAMA_HOST` and `OLLAMA_MODEL` is pulled | Install Ollama, then `ollama pull qwen2.5:3b-instruct` (about 2 GB) or `ollama pull llama3.2:3b`. On a low-memory laptop use `qwen2.5:1.5b-instruct` or `qwen2.5:0.5b-instruct` and set `OLLAMA_MODEL` to match. |
 | OpenAI-compatible API (optional) | No Ollama, and `LLM_API_KEY` or `OPENAI_API_KEY` is set | Optional `LLM_BASE_URL`, `LLM_MODEL` |
+| Fine-tuned router (opt-in) | `NP_BRAIN=finetuned` and `FT_MODEL` (default `nimbuspay-router`) is in Ollama | Train it on a free Colab T4 with [`finetune/`](finetune/README.md), then `ollama create nimbuspay-router -f Modelfile`. It ships only if it passes the release gate. |
 | Rules engine (always available) | Otherwise, or `NP_BRAIN=rules` | Nothing |
 
 ```bash
 ollama pull qwen2.5:3b-instruct          # one time
 ollama serve                             # if it isn't already running as a service
 OLLAMA_MODEL=qwen2.5:3b-instruct python -m app
-# env: NP_BRAIN=auto|ollama|openai|rules (default auto), OLLAMA_HOST (default http://127.0.0.1:11434), OLLAMA_TIMEOUT (s)
+# env: NP_BRAIN=auto|ollama|openai|finetuned|rules (default auto), OLLAMA_HOST (default http://127.0.0.1:11434), OLLAMA_TIMEOUT (s)
 ```
 The model gets the question plus the list of governed tools, and Ollama's structured output (a JSON schema with an enum of tool names) forces its reply to be one tool name or `none`.
 

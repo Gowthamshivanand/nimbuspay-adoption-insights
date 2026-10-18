@@ -3,8 +3,9 @@
 governed metrics, executing real SQL on the local warehouse. Every answer cites metric ID + version + data-as-of
 and shows the SQL. Unsafe asks are refused with a safe alternative. Optional LLM mode (env key) only picks an
 intent from the governed tool list; guards always run first and numbers always come from SQL, never the LLM."""
-import json, os, re, urllib.request
+import json, os, re, threading, urllib.request
 from . import config as C
+from . import finetuned as FT
 
 PERSONAS = {
     "executive": dict(label="Executive", regions=None),
@@ -57,6 +58,27 @@ CLAIM = (r"(\bconfirm|\bverify|\bvalidate|\bagree\b|say yes|is it true|\bright\s
          r"|put (that|this|it) in|sign off on|\bprove\b)")
 CLAIM_NUM = r"(\d+(?:\.\d+)?)\s*(%|percent\b|x\b|crores?\b|lakhs?\b|cr\b|hours?\b|hrs?\b|seats?\b|users?\b|people\b)"
 UNGOVERNED = r"(sentiment|happiness|productivity|\broi\b|morale|\bnps\b|engagement score|lines of code)"
+
+# reason -> (why, safe alternative, metrics). Shared by the code guards and the fine-tuned router's "refuse" route
+# (the model only picks a reason; the text is always this canned, reviewed text). "gaming" is reachable only via the model.
+REFUSALS = {
+    "injection": ("I can't switch off my rules: instructions inside a question are treated as text, not commands. My guards are code that runs before any model, and your access comes from your role, not from what the question says.",
+                  "Ask a governed question instead, for example 'What is licence utilisation this month?' or 'How reliable are our agents?'", []),
+    "write": ("I can't do that: I am read-only and never change agents, seats, data or settings.",
+              "I can show this agent's usage, reliability and owner from the registry so the owner can decide and act through change control.", ["M16", "M10"]),
+    "pii": ("I can't show raw events, user-level records or personal or card data. Raw PII never leaves the masked zone.",
+            "I can give aggregate, governed figures instead, for example licence utilisation (M01) or interactions per active user (M04) by region.", ["M01", "M04"]),
+    "individual": ("I can't rank or single out individual people. Adoption metrics are for improving the product and enablement, not monitoring staff.",
+                   "I can show team or region-level utilisation (M01) and habitual users (M02) for groups of at least %d people." % C.MIN_GROUP, ["M01"]),
+    "forecast": ("I don't forecast. Governed metrics describe the closed period only; a forecast would be a guess presented as a fact.",
+                 "I can show the current figure and its change versus the previous closed period when one exists.", ["M01"]),
+    "causal": ("I can't say the agent caused that. Usage data shows correlation only; cause needs the agreed study (staggered rollout or holdout).",
+               "I can show the M09 study design and the before/after figures with their caveat, or the adoption trend for that workflow.", ["M09"]),
+    "ungoverned": ("That isn't a governed metric, so I won't compute it on the fly.",
+                   "Governed alternatives: M01 utilisation, M02 habitual users, M04 interactions per active user, M17 verified hours, M19 value score. Propose new metrics to the metric owner (cap of 25).", []),
+    "gaming": ("I can't help inflate or game a metric. Governed metrics count qualifying use only, so extra logins or empty runs do not move them.",
+               "I can show which pillars of the value score (M19) are low and what genuine use would move them, or the licence funnel (LF1-LF6).", ["M19"]),
+}
 
 AGENT_ALIAS = [(r"fraud", "AG-FRAUD-01"), (r"\bkyc\b", "AG-KYC-04"), (r"onboarding", "AG-ONB-02"), (r"summar", "AG-SUMM-03"), (r"\bx9\b", "AG-DND-X9")]
 AGENT_WORD = r"\b(agent|assistant|bot|copilot|checker|summari[sz]er|tool)\b"
@@ -141,6 +163,24 @@ class Agent:
     def refuse(self, why, alt, metrics=(), intent="refuse"):
         return self._resp("refuse", why, metrics, alt=alt, intent=intent)
 
+    def refusal(self, reason, persona):
+        """Canned refusal for a reason (used by the code guards and by the fine-tuned router's 'refuse' route)."""
+        if reason == "small_group":
+            return self.refuse(f"I can't report a group smaller than {C.MIN_GROUP} people: it could identify individuals.",
+                               "I can show the figure at region level, or for the team once it has at least %d assigned seats." % C.MIN_GROUP, ["LF4"], "small_group")
+        if reason == "scope":
+            regions = _scope(persona) or []
+            return self.refuse("That market is outside your access scope. Row-level security follows your SSO role (%s)." % (", ".join(regions) or "no data scope"),
+                               "I can show the same metric for your own region, or the company-wide total that renewal uses. Ask your sponsor for wider access if needed.", ["M01"], "scope")
+        why, alt, metrics = REFUSALS[reason]
+        return self.refuse(why, alt, metrics, reason)
+
+    # Validated args from the fine-tuned router (empty for other brains). Thread-local: requests can run in parallel.
+    _ctx = threading.local()
+
+    def _arg(self, key):
+        return (getattr(self._ctx, "args", None) or {}).get(key)
+
     def _agent_in(self, ql):
         for aid in self.agents:
             if aid.lower() in ql: return aid
@@ -152,39 +192,25 @@ class Agent:
     # ---------- guards (always deterministic, run before any intent or LLM) ----------
     def guards(self, q, persona):
         ql = q.lower().strip()
-        if re.search(INJECTION, ql):
-            return self.refuse("I can't switch off my rules: instructions inside a question are treated as text, not commands. My guards are code that runs before any model, and your access comes from your role, not from what the question says.",
-                               "Ask a governed question instead, for example 'What is licence utilisation this month?' or 'How reliable are our agents?'", [], "injection")
-        if re.search(WRITE, ql):
-            return self.refuse("I can't do that: I am read-only and never change agents, seats, data or settings.",
-                               "I can show this agent's usage, reliability and owner from the registry so the owner can decide and act through change control.", ["M16", "M10"], "write")
-        if re.search(PII, ql):
-            return self.refuse("I can't show raw events, user-level records or personal or card data. Raw PII never leaves the masked zone.",
-                               "I can give aggregate, governed figures instead, for example licence utilisation (M01) or interactions per active user (M04) by region.", ["M01", "M04"], "pii")
-        if re.search(INDIVIDUAL, ql):
-            return self.refuse("I can't rank or single out individual people. Adoption metrics are for improving the product and enablement, not monitoring staff.",
-                               "I can show team or region-level utilisation (M01) and habitual users (M02) for groups of at least %d people." % C.MIN_GROUP, ["M01"], "individual")
+        for reason, pat in (("injection", INJECTION), ("write", WRITE), ("pii", PII), ("individual", INDIVIDUAL)):
+            if re.search(pat, ql): return self.refusal(reason, persona)
         m = re.search(r"team of (\d+)|(\d+)[- ]person team|team with (\d+)", ql)
         if m and int(next(g for g in m.groups() if g)) < C.MIN_GROUP:
-            return self.refuse(f"I can't report a group smaller than {C.MIN_GROUP} people: it could identify individuals.",
-                               "I can show the figure at region level, or for the team once it has at least %d assigned seats." % C.MIN_GROUP, ["LF4"], "small_group")
+            return self.refusal("small_group", persona)
         regions = _scope(persona)
         if regions:
             asked = _regions_in(ql)
             outside = "outside my region" in ql or "other region" in ql or "another market" in ql or "outside my market" in ql
             if outside or any(a not in [x.split(" (")[0] for x in regions] for a in asked):
-                return self.refuse("That market is outside your access scope. Row-level security follows your SSO role (%s)." % ", ".join(regions),
-                                   "I can show the same metric for your own region, or the company-wide total that renewal uses. Ask your sponsor for wider access if needed.", ["M01"], "scope")
-        if re.search(FORECAST, ql):
-            return self.refuse("I don't forecast. Governed metrics describe the closed period only; a forecast would be a guess presented as a fact.",
-                               "I can show the current figure and its change versus the previous closed period when one exists.", ["M01"], "forecast")
-        if re.search(CAUSAL, ql):
-            return self.refuse("I can't say the agent caused that. Usage data shows correlation only; cause needs the agreed study (staggered rollout or holdout).",
-                               "I can show the M09 study design and the before/after figures with their caveat, or the adoption trend for that workflow.", ["M09"], "causal")
-        if re.search(UNGOVERNED, ql):
-            return self.refuse("That isn't a governed metric, so I won't compute it on the fly.",
-                               "Governed alternatives: M01 utilisation, M02 habitual users, M04 interactions per active user, M17 verified hours, M19 value score. Propose new metrics to the metric owner (cap of 25).", [], "ungoverned")
+                return self.refusal("scope", persona)
+        for reason, pat in (("forecast", FORECAST), ("causal", CAUSAL), ("ungoverned", UNGOVERNED)):
+            if re.search(pat, ql): return self.refusal(reason, persona)
         return None
+
+    def out_of_scope(self, region, persona):
+        """True if a region (e.g. from the fine-tuned router's args) is outside the caller's row-level scope."""
+        regions = _scope(persona)
+        return regions is not None and region not in [x.split(" (")[0] for x in regions]
 
     def no_role(self):
         return self.refuse("I can't show data: your role isn't recognised, so you get least-privilege access (deny by default). In production the role comes from your SSO token, never from the request.",
@@ -193,7 +219,7 @@ class Agent:
     # ---------- intents ----------
     def m01(self, q, persona):
         reg = _scope(persona); w, a = _scope_sql(reg)
-        asked = _regions_in(q.lower())
+        asked = [self._arg("region")] if self._arg("region") else _regions_in(q.lower())
         if asked:
             w += " AND (" + " OR ".join("region LIKE ?" for _ in asked) + ")"; a += tuple(x + "%" for x in asked)
         sql = f"SELECT SUM(active) AS active, SUM(assigned) AS assigned,\n  ROUND(100.0*SUM(active)/SUM(assigned),1) AS m01_pct\nFROM user_funnel WHERE assigned = 1{w};"
@@ -315,7 +341,7 @@ class Agent:
         return sql, _sql(self.db, sql, (aid,))[0]
 
     def agent_health(self, q, persona):
-        aid = self._agent_in(q.lower())
+        aid = self._arg("agent") or self._agent_in(q.lower())
         if not aid: return self.reliability(q, persona)
         a = self.agents[aid]; sql, (n, qual, users, exact) = self._agent_sql(aid)
         flags = []
@@ -329,7 +355,7 @@ class Agent:
                           ["M10", "M11", "M20", "M04"] + ([] if a["registered"] else ["M16"]), _show(sql, (aid,)), intent="agent_health")
 
     def agent_value(self, q, persona):
-        aid = self._agent_in(q.lower())
+        aid = self._arg("agent") or self._agent_in(q.lower())
         if not aid: return self.m17(q, persona)
         a = self.agents[aid]; sql, (n, qual, users, exact) = self._agent_sql(aid)
         m = self.metrics["M17"]
@@ -453,7 +479,8 @@ class Agent:
 
     def outcome(self, q, persona):
         ql = q.lower()
-        mid, label, need = next(((m, l, n) for p, m, l, n in OUTCOME if re.search(p, ql)), ("M07", "Task success rate", "task outcome labels"))
+        mid, label, need = next(((m, l, n) for p, m, l, n in OUTCOME if (m == self._arg("metric") if self._arg("metric") else re.search(p, ql))),
+                                ("M07", "Task success rate", "task outcome labels"))
         m = self.metrics.get(mid)
         if m and m["value"] is not None:
             return self._resp("answer", f"{label} ({mid}) is {m['value']} {m['unit']} ({m['note']}).", [mid], intent="outcome")
@@ -520,15 +547,28 @@ class Agent:
         r["suggestions"] = sug
         return r
 
-    def ask(self, q, persona=None):
+    def regions(self):
+        return sorted({r[0] for r in _sql(self.db, "SELECT DISTINCT region FROM user_funnel")})
+
+    def ask(self, q, persona=None, prev=None):
+        """prev: optional previous question (from the session), so the fine-tuned brain can resolve follow-ups."""
         persona = resolve_persona(persona)                  # deny by default: unknown or missing role -> least privilege
-        g = self.guards(q, persona)                      # safety guards are ALWAYS deterministic
+        g = self.guards(q, persona)                      # safety guards are ALWAYS deterministic and run first
         if g:
             g["mode"] = "rules (guard)"; return g
         q = re.sub(r"<[^<>]{0,300}>", " ", q).strip() or q   # markup is text, never routing input (e.g. '<img onerror=alert(1)>' is not an 'alerts' question)
+        claims = claimed_numbers(q)
         b = brain()
-        fn, mode = None, "rules"
-        if b["kind"] != "rules":
+        fn, mode, args, ft_note = None, "rules", {}, None
+        if b["kind"] == "finetuned":
+            d = FT.route(q, persona, prev, self.agents, self.regions())   # schema-checked; None on any failure
+            if d and d["tool"] == "refuse":              # the model may refuse MORE than the guards, never less
+                r = self.refusal(d["args"]["reason"], persona); r["mode"] = b["label"] + " (refuse)"; r["persona"] = persona
+                return r
+            if d and d["tool"] != "none":
+                fn, args, mode = d["tool"], d["args"], b["label"]
+            ft_note = "model said none" if d else "invalid model output"
+        elif b["kind"] != "rules":
             fn = b["route"](q, list(INTENT_HELP))        # the model only picks a governed tool
             if fn: mode = b["label"]
         if not fn:
@@ -538,11 +578,24 @@ class Agent:
             r = self.no_role()
         elif not fn:
             r = self.unmatched(q)
+        elif args.get("region") and self.out_of_scope(args["region"], persona):
+            r = self.refusal("scope", persona)           # scope is re-checked on the model's args, not only on the question text
         else:
-            r = getattr(self, fn)(q, persona)            # numbers come from SQL / pipeline here, never from the model
-        claims = claimed_numbers(q)
-        if claims:
+            self._ctx.args = args
+            try:
+                r = getattr(self, fn)(q, persona)        # numbers come from SQL / pipeline here, never from the model
+            finally:
+                self._ctx.args = None
+            if (b["kind"] == "finetuned" and mode == b["label"] and r["type"] in ("answer", "caveat") and not claims
+                    and os.environ.get("FT_ANSWER", "1") != "0"):
+                txt, why = FT.answer(q, persona, r)      # model writes the text; every number must be in the governed result
+                if txt:
+                    r["template_text"], r["text"], r["answer_by"] = r["text"], txt, "model (number-checked)"
+                else:
+                    r["answer_by"] = "template (" + why + ")"
+        if claims:                                       # a user-typed number is never echoed as fact (template text only)
             r = self._claim_check(r, claims)
+        if ft_note and mode == "rules (fallback)": r["fallback_reason"] = ft_note
         r["mode"] = mode
         r["persona"] = persona
         return r
@@ -661,14 +714,17 @@ def llm_enabled():
 
 
 def brain(refresh=False):
-    """Pick the active brain: NP_BRAIN=rules|ollama|openai|auto (default auto).
+    """Pick the active brain: NP_BRAIN=rules|ollama|openai|finetuned|auto (default auto). finetuned = FT_MODEL via Ollama.
     auto: local open model via Ollama if reachable, else an OpenAI-compatible key if set, else rules. Cached 30 s."""
     import time
     pref = os.environ.get("NP_BRAIN", "auto").lower()
     if not refresh and _BRAIN["v"] and time.time() - _BRAIN["t"] < 30 and _BRAIN["v"]["pref"] == pref:
         return _BRAIN["v"]
     v = dict(kind="rules", label="Rules engine", route=None, pref=pref)
-    if pref in ("auto", "ollama") and _ollama_ready():
+    if pref == "finetuned":                       # opt-in only, never picked by auto
+        if FT.ready():
+            v = dict(kind="finetuned", label=f"Fine-tuned model ({FT.ft_model()})", route=None, pref=pref)
+    elif pref in ("auto", "ollama") and _ollama_ready():
         v = dict(kind="ollama", label=f"Open model ({ollama_model()} via Ollama)", route=ollama_route, pref=pref)
     elif pref in ("auto", "openai") and llm_enabled():
         v = dict(kind="openai", label=f"LLM router ({os.environ.get('LLM_MODEL', 'gpt-4o-mini')})", route=llm_route, pref=pref)
@@ -678,7 +734,7 @@ def brain(refresh=False):
 
 def brain_info():
     b = brain()
-    return dict(kind=b["kind"], label=b["label"], ollama_host=ollama_host(), ollama_model=ollama_model())
+    return dict(kind=b["kind"], label=b["label"], ollama_host=ollama_host(), ollama_model=FT.ft_model() if b["kind"] == "finetuned" else ollama_model())
 
 
 def llm_route(q, intents):
