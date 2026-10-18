@@ -305,7 +305,7 @@ class FakeOllama(BaseHTTPRequestHandler):
     def do_GET(self): self._send({"models": [{"name": "nimbuspay-router:latest", "model": "nimbuspay-router:latest"}]})
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"]))); FakeOllama.bodies.append(body)
-        txt = '{"tool": "reliability", "args": {}}' if body.get("format") == "json" else "Agents are mostly within the gates. Source: M10."
+        txt = '{"tool": "reliability", "args": {}}' if body.get("format") == "json" or isinstance(body.get("format"), dict) else "Agents are mostly within the gates. Source: M10."
         self._send({"message": {"role": "assistant", "content": txt}})
 
 
@@ -320,6 +320,7 @@ def test_ollama_transport(monkeypatch, base):
         r = A.Agent(*base).ask("which bots are flakiest", "platform_engineer")     # rules miss it -> hybrid asks the model
         assert r["intent"] == "reliability" and r["ft_route"] == "reliability" and "answer_by" not in r   # FT_ANSWER defaults to 0
         b0 = FakeOllama.bodies[0]
+        assert isinstance(b0["format"], dict) and "anyOf" in b0["format"]                     # FT_JSON_SCHEMA default on
         assert b0["model"] == "nimbuspay-router" and b0["options"]["temperature"] == 0 and b0["keep_alive"] == "30m" and len(FakeOllama.bodies) == 1
         monkeypatch.setenv("FT_ANSWER", "1")
         r = A.Agent(*base).ask("which bots are flakiest", "platform_engineer")
@@ -463,3 +464,89 @@ def test_models_tab_sees_the_finetuned_brain(monkeypatch):
         assert A.brain_info()["kind"] == "finetuned" and A.brain_info()["ollama_model"] == "nimbuspay-router"
     finally:
         FT.FT_GENERATE = None; monkeypatch.setenv("NP_BRAIN", "rules"); A.brain(refresh=True)
+
+
+# ---------- structured outputs: Ollama `format` = JSON schema (FT_JSON_SCHEMA, default on) ----------
+def _variants(schema):
+    return {v["properties"]["tool"]["enum"][0]: v for v in schema["anyOf"]}
+
+
+def test_route_schema_labels_match_training_data():
+    vs = _variants(FT.route_schema(AG))
+    assert set(vs) == set(FT.tool_names()) | {"none", "refuse"}
+    assert vs["refuse"]["properties"]["args"]["required"] == ["reason"]
+    assert vs["refuse"]["properties"]["args"]["properties"]["reason"]["enum"] == FT.REFUSE_REASONS
+    assert vs["outcome"]["properties"]["args"]["required"] == ["metric"]
+    assert vs["agent_health"]["properties"]["args"]["properties"]["agent"]["enum"] == sorted(AG)
+    assert set(vs["none"]["properties"]["args"]["properties"]["clarify"]["enum"]) == FT.CLARIFY_SLOTS
+    # every route label in the training / val / test data fits exactly one variant (tool + arg keys + required)
+    root = os.path.join(os.path.dirname(__file__), "..", "finetune", "data")
+    for f in ("train.jsonl", "val.jsonl", "test.jsonl"):
+        for line in open(os.path.join(root, f), encoding="utf-8"):
+            r = json.loads(line)
+            if r["task"] != "route": continue
+            d = json.loads(r["messages"][-1]["content"])
+            a = _variants(FT.route_schema())[d["tool"]]["properties"]["args"]
+            assert set(d["args"]) <= set(a["properties"]) and set(a["required"]) <= set(d["args"]), (f, d)
+
+
+def _capture_ollama(monkeypatch, reply):
+    sent = {}
+    def fake(url, body=None, timeout=None):
+        sent["url"], sent["body"] = url, body
+        return {"message": {"content": reply}}
+    monkeypatch.setattr(A, "_http_json", fake)
+    return sent
+
+
+def test_route_call_passes_json_schema_by_default(monkeypatch):
+    monkeypatch.delenv("FT_JSON_SCHEMA", raising=False)
+    sent = _capture_ollama(monkeypatch, '{"tool": "m01", "args": {}}')
+    assert FT.route("What is licence utilisation?", "executive", None, AG, RG) == {"tool": "m01", "args": {}}
+    fmt = sent["body"]["format"]
+    assert isinstance(fmt, dict) and "anyOf" in fmt and sent["url"].endswith("/api/chat")
+    assert _variants(fmt)["agent_value"]["properties"]["args"]["properties"]["agent"]["enum"] == sorted(AG)
+
+
+def test_json_schema_switch_off_uses_plain_json(monkeypatch):
+    monkeypatch.setenv("FT_JSON_SCHEMA", "0")
+    sent = _capture_ollama(monkeypatch, '{"tool": "m01", "args": {}}')
+    FT.route("What is licence utilisation?", "executive", None, AG, RG)
+    assert sent["body"]["format"] == "json"
+
+
+def test_answer_call_has_no_format(monkeypatch):
+    sent = _capture_ollama(monkeypatch, "ok")
+    FT.generate([{"role": "user", "content": "x"}], "answer")
+    assert "format" not in sent["body"]
+
+
+def test_eval_generate_route_uses_schema(monkeypatch):
+    sent = _capture_ollama(monkeypatch, '{"tool": "none", "args": {}}')
+    FT.generate(FT.route_messages("hi", "executive"), "route")      # the call finetune/eval_finetuned.py makes
+    assert "anyOf" in sent["body"]["format"]
+
+
+@pytest.mark.parametrize("err", [TimeoutError("slow"), ValueError("bad json")])
+def test_schema_route_timeout_or_parse_error_falls_back_to_rules(monkeypatch, ft, base, err):
+    ft(route=err)
+    r = A.Agent(*base).ask("What is licence utilisation?", "executive")
+    assert r["mode"] == "rules (fallback)" and r["intent"].lower() == "m01" and r["ft_route"] == "invalid"
+
+
+def test_missing_required_arg_clarifies_not_guesses(ft, base):
+    ft(route='{"tool": "outcome", "args": {}}')
+    r = A.Agent(*base).ask("Did the study show any improvement?", "executive")
+    assert r.get("clarify") == "topic" and r["clarify_reason"] == "missing args: metric" and not r.get("rows")
+
+
+def test_tool_not_allowed_for_role_is_denied_not_run(ft, base):
+    ft(route='{"tool": "m01", "args": {}}')            # a data tool for a role-less caller: deny (no_role), never run it
+    r = A.Agent(*base).ask("What is licence utilisation?", "guest")
+    assert r["intent"] == "no_role" and not r.get("rows") and r["persona"] == "guest"
+
+
+def test_tool_outside_role_scope_is_refused(ft, base):
+    ft(route='{"tool": "m01", "args": {"region": "Region B"}}')
+    r = A.Agent(*base).ask("What is licence utilisation in region b?", "regional_lead")
+    assert r["type"] == "refuse" and not r.get("rows")

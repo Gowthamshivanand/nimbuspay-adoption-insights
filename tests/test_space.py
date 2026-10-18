@@ -22,6 +22,6 @@ def test_make_space_folder_is_clean():
     import make_space as M
     M.build()
     assert M.check() == []
-    files = {os.path.relpath(os.path.join(d, f), M.OUT) for d, _, fs in os.walk(M.OUT) for f in fs}
+    files = {os.path.relpath(os.path.join(d, f), M.OUT).replace(os.sep, "/") for d, _, fs in os.walk(M.OUT) for f in fs}
     assert {"README.md", "Dockerfile", "requirements.txt", "app/server.py", "app/static/index.html"} <= files
     assert not any(f.endswith((".db", ".pyc")) for f in files)

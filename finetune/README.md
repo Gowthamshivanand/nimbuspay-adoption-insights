@@ -76,6 +76,7 @@ The failures were questions the rules engine handles on purpose: claims with no 
 | `FT_RULES_MIN_CONF` | `0.65` | Rules confidence needed to skip the model |
 | `FT_ANSWER` | `0` | `1` = the model also writes the answer text (number-checked); off for the demo because it was most of the p95 |
 | `FT_TIMEOUT_S` | `4` | Per model call; on timeout the rules answer is used |
+| `FT_JSON_SCHEMA` | `1` | Route call passes a JSON schema as Ollama `format` (governed tool enum, required args), so invalid JSON or unknown tools cannot be generated; `0` = plain `"json"` |
 | `FT_KEEP_ALIVE` | `30m` | Sent to Ollama so the model stays loaded between questions |
 | `FT_WARMUP` | `1` | With `NP_BRAIN=finetuned` the server loads the model in the background at startup (`0` to skip) |
 

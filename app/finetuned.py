@@ -100,13 +100,42 @@ def gold_answer(r):
     return txt + (f" Source: {src} ({r['citations'][0]['version']}, data as of {r['data_as_of']})." if src else "")
 
 
+# ---------- structured output (Ollama `format` = JSON schema) ----------
+REQUIRED_ARGS = {"outcome": {"metric"}, "refuse": {"reason"}}   # a route without these is never acted on (clarify instead)
+
+
+def json_schema_on():
+    """FT_JSON_SCHEMA=1 (default): the route call passes a JSON schema as Ollama `format`, so the decoder can only emit
+    a valid {"tool", "args"} object with a governed tool name. 0 = plain format "json" (the v1 behaviour)."""
+    return os.environ.get("FT_JSON_SCHEMA", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def route_schema(agents=None):
+    """JSON schema for the route output. Labels are exactly the ones the training data uses (finetune/make_dataset.py):
+    every governed tool name, "none" (optional args.clarify agent|topic) and "refuse" (required args.reason)."""
+    def obj(tool, props=None, required=()):
+        return {"type": "object", "properties": {"tool": {"type": "string", "enum": [tool]},
+                "args": {"type": "object", "properties": props or {}, "required": list(required), "additionalProperties": False}},
+                "required": ["tool", "args"], "additionalProperties": False}
+    agent = {"type": "string", "enum": sorted(agents)} if agents else {"type": "string"}
+    special = {"m01": obj("m01", {"region": {"type": "string"}}),
+               "agent_health": obj("agent_health", {"agent": agent}),
+               "agent_value": obj("agent_value", {"agent": agent}),
+               "outcome": obj("outcome", {"metric": {"type": "string", "enum": sorted(OUTCOME_METRICS)}}, ["metric"])}
+    variants = [special.get(t) or obj(t) for t in tool_names()]
+    variants.append(obj("none", {"clarify": {"type": "string", "enum": sorted(CLARIFY_SLOTS)}}))
+    variants.append(obj("refuse", {"reason": {"type": "string", "enum": REFUSE_REASONS}}, ["reason"]))
+    return {"anyOf": variants}
+
+
 # ---------- model I/O ----------
-def _ollama_chat(messages, kind, timeout=None):
+def _ollama_chat(messages, kind, timeout=None, schema=None):
     from .agent import _http_json, ollama_host
     h = ollama_host(); h = h if h.startswith("http") else "http://" + h
     body = {"model": ft_model(), "stream": False, "messages": messages,
             "options": {"temperature": 0, "num_predict": 96 if kind == "route" else 220}}
-    if kind == "route": body["format"] = "json"
+    if kind == "route":
+        body["format"] = (schema or route_schema()) if json_schema_on() else "json"
     body["keep_alive"] = os.environ.get("FT_KEEP_ALIVE", "30m")       # keep the model loaded between questions
     out = _http_json(h + "/api/chat", body, timeout=timeout or ft_timeout())
     return out["message"]["content"]
@@ -130,8 +159,10 @@ def warmup(timeout=120):
         return None
 
 
-def generate(messages, kind):
-    return (FT_GENERATE or _ollama_chat)(messages, kind)
+def generate(messages, kind, schema=None):
+    """One model call. Route calls carry the JSON schema (FT_JSON_SCHEMA); eval_finetuned.py uses this same function."""
+    if FT_GENERATE: return FT_GENERATE(messages, kind)
+    return _ollama_chat(messages, kind, schema=schema)
 
 
 def ready():
@@ -172,7 +203,7 @@ def parse_route(text, agents, regions):
 
 def route(q, role, prev, agents, regions):
     try:
-        return parse_route(generate(route_messages(q, role, prev), "route"), agents, regions)
+        return parse_route(generate(route_messages(q, role, prev), "route", schema=route_schema(agents)), agents, regions)
     except Exception:
         return None
 

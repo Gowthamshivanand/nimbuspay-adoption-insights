@@ -603,6 +603,13 @@ class Agent:
                 r = self.clarify(q, d["args"]["clarify"]); r["mode"] = b["label"] + " (clarify)"; r["persona"] = persona
                 r["ft_route"] = ft_route; return r
             if d and d["tool"] != "none":
+                missing = FT.REQUIRED_ARGS.get(d["tool"], set()) - set(d["args"])
+                if missing:                              # required args missing: ask, never guess (a tool the role may not
+                    # use is still denied below: no_role for role-less callers, scope refusal for out-of-scope regions)
+                    r = self.clarify(q, "topic"); r["mode"] = b["label"] + " (clarify)"; r["persona"] = persona
+                    r["ft_route"] = ft_route
+                    r["clarify_reason"] = "missing args: " + ", ".join(sorted(missing))
+                    return r
                 fn, args, mode = d["tool"], d["args"], b["label"]
             ft_note = ft_note or ("model said none" if d else "invalid model output or timeout")
         elif b["kind"] not in ("rules", "finetuned"):
