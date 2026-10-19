@@ -219,7 +219,7 @@ python -m pytest -q                      # 313 tests in CI plus 2 browser walkth
 | Missing interaction IDs (drag-and-drop heavy) | Continue limited pilot |
 | Critical-risk breach (privacy) | Renew with remediation conditions (score flagged red) |
 
-Personas: Executive sponsor, Regional lead A, Regional lead B, Platform engineer, Fraud operations lead, plus "Unrecognised role (least privilege)" to show deny by default (any unknown role lands there). A **Guided demo** button runs a 6-step story. A walkthrough video is in `docs/demo.mp4`.
+Personas: Executive sponsor, Regional lead A, Regional lead B, Platform engineer, Fraud operations lead, plus "Unrecognised role (least privilege)" to show deny by default (any unknown role lands there). A **Guided demo** button runs a 6-step story. A walkthrough video is in `docs/demo.mp4`. The live product (`app/`) uses its own role list in `app/agent.py`: Executive, Regional lead (Region A), Platform engineer, Fraud operations lead (Region A), Finance and Procurement, Manager (all regions), Analyst (Region A) and the same least-privilege fallback (definitions only, no data).
 
 ### Screenshots
 ![Live product: executive view](docs/screenshots/app-02-executive.png)

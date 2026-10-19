@@ -22,9 +22,9 @@ The agent's brain is whatever is running. With the launcher and Ollama it shows 
 | 3:00 | Set **Users** to 2000 | "Ten times the users: about $78 a month hosted. Cost scales with tokens, not servers. Speed figures are assumptions until benchmarked; the proposed target is p95 under 3 seconds." |
 | 3:15 | **Data**: Load *Critical-risk breach*, then **Executive** | "A privacy incident turns the score red and forces remediation, however good usage looks." |
 | 3:30 | **Audit log** | "Every question I just asked is logged with persona, result, metrics cited and the mode: rules or model. That's the observability you need on day one." |
-| 3:45 | Stop | "How it ships: 313 tests in CI plus two browser walkthroughs, then the agent test gate before every release, DEV to staging to production. Measure the work, not the clicks." |
+| 3:45 | Stop | "How it ships: 386 tests in CI plus two browser walkthroughs, then the agent test gate before every release, DEV to staging to production. Measure the work, not the clicks." |
 
-Say the test line exactly as written: "313 tests in CI plus two browser walkthroughs, then the agent test gate". Don't add the two walkthroughs into the CI number ("315 in CI" is wrong).
+Say the test line exactly as written: "386 tests in CI plus two browser walkthroughs, then the agent test gate". Don't add the two walkthroughs into the CI number ("388 in CI" is wrong).
 
 ## New agent beats (about 75 s; use after 1:55, or as extras if the panel asks)
 | Do | Say |
