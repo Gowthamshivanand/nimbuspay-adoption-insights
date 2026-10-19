@@ -350,6 +350,8 @@ def parse_route(text, agents, regions):
     if not isinstance(d, dict) or set(d) - {"tool", "args"}: return None
     tool, args = d.get("tool"), d.get("args") or {}
     if not isinstance(tool, str) or not isinstance(args, dict): return None
+    if tool.upper() in OUTCOME_METRICS and not args:   # one narrow repair: the model named an outcome metric as the tool
+        tool, args = "outcome", {"metric": tool.upper()}   # ('m07' -> outcome M07); every other unknown tool is still rejected
     if tool not in tool_names() and tool not in ("none", "refuse"): return None
     if set(args) - ARG_KEYS.get(tool, set()): return None
     if any(not isinstance(v, str) for v in args.values()): return None

@@ -303,3 +303,13 @@ def test_demo_mode_refuses_a_live_model_eval(client, monkeypatch):
     r = client.post("/api/models/run/finetuned")
     assert r.status_code == 409 and "live demo" in r.json()["detail"]
     assert '$env:NP_DEMO = "1"' in open(os.path.join(ROOT, "run_demo.ps1"), encoding="utf-8").read()
+
+
+# ---------- one narrow route repair (measured: the only fixable 'invalid' fresh-wording output) ----------
+def test_outcome_metric_named_as_tool_is_repaired_and_nothing_else():
+    AG, RG = ["AG-FRAUD-01"], ["Region A"]
+    assert FT.parse_route('{"tool": "m07", "args": {}}', AG, RG) == {"tool": "outcome", "args": {"metric": "M07"}}
+    assert FT.parse_route('{"tool": "M09", "args": {}}', AG, RG) == {"tool": "outcome", "args": {"metric": "M09"}}
+    for bad in ('{"tool": "m07", "args": {"region": "Region A"}}', '{"tool": "m05", "args": {}}', '{"tool": "m99", "args": {}}',
+                '{"tool": "agent_health", "args": {"agent": "AG-KYC-03"}}'):   # hallucinated agent IDs stay rejected
+        assert FT.parse_route(bad, AG, RG) is None, bad
