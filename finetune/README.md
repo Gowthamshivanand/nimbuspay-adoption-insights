@@ -46,7 +46,7 @@ Refusal recall of the rules router on this test is 32.8% (63 should-refuse rows 
 | Answer text from the tool's rows + citations | **Model**, then code rejects any number not in the result and falls back to the template answer |
 | Claim check ("confirm 40% savings"): a user-typed number is never echoed | **Code.** Claim questions always use the template answer. |
 
-The integration is `NP_BRAIN=finetuned` in `app/agent.py` + `app/finetuned.py`. The model name comes from `FT_MODEL` (default `nimbuspay-router`). In a chat session the previous question is passed to the model (`app/conversation.py`), so it can resolve follow-ups the rules rewrite doesn't cover.
+The integration is `NP_BRAIN=finetuned` in `app/agent.py` + `app/finetuned.py`. The model name comes from `FT_MODEL` (default `gowtham-nimbuspay-agent`). In a chat session the previous question is passed to the model (`app/conversation.py`), so it can resolve follow-ups the rules rewrite doesn't cover.
 
 ## Colab run 1 (1.5B, 2 epochs, public mix on, 8,666 train rows) and what changed
 | | Result |
@@ -85,8 +85,8 @@ The failures were questions the rules engine handles on purpose: claims with no 
 2. `Runtime > Change runtime type > T4 GPU > Save`.
 3. `Runtime > Run all`. **Run 2 retrains from base** with a fresh LoRA and the defaults (1.5B, `EPOCHS = 2`, `USE_PUBLIC = True`). Resuming the run-1 adapter is not offered on purpose: the data changed, a resumed run needs its own LR schedule, and a fresh run is simpler and reproducible. **Time is an estimate, not measured** (run 1 did not log it; the report now has `train_minutes`). The mix is 7,270 synthetic + 2,892 public train rows, about 3.2M tokens per epoch, roughly 20% more than run 1. With 2 epochs the 1.5B run is roughly **55 to 105 minutes**: about 45 to 85 minutes of training, about 5 to 15 minutes of evaluation (961 test + 350 public eval rows, then the rules / hybrid / pure gates) and about 5 minutes for llama.cpp and export. If your run 1 took T minutes, expect about 1.2 × T. `EPOCHS = 1` roughly halves training; `USE_PUBLIC = False` drops about a quarter of the tokens.
 4. Read the output of cell 8 (model metrics, including the hybrid tool accuracy) and cell 9 (the rules, hybrid and pure release gates). If the hybrid gate says **FAIL**, stop there and keep the rules engine.
-5. Cell 12 downloads `nimbuspay-router-export.zip`, which contains `nimbuspay-router-q4_k_m.gguf` (about 1 GB), the `Modelfile` and `eval_report.json`.
-6. On Windows, unzip it, open PowerShell in that folder and run `ollama create nimbuspay-router -f Modelfile`, then follow **Windows laptop eval** below.
+5. Cell 12 downloads `gowtham-nimbuspay-agent-export.zip`, which contains `gowtham-nimbuspay-agent-q4_k_m.gguf` (about 1 GB), the `Modelfile` and `eval_report.json`.
+6. On Windows, unzip it, open PowerShell in that folder and run `ollama create gowtham-nimbuspay-agent -f Modelfile`, then follow **Windows laptop eval** below.
 7. Optional: set `PUSH_TO_HF = True` in cell 1 to upload the model, the adapter and the dataset to your own Hugging Face account. Colab asks for a write token; nothing is saved in the notebook.
 
 **7B option:** set `MODEL_CHOICE = "7B"` in cell 1. It trains `Qwen2.5-7B-Instruct` with 4-bit QLoRA and runs 1 epoch by default. With the bigger mix that is an estimated **3.5 to 6 hours**, which is often past a free Colab session, so use `USE_PUBLIC = False` for 7B (about 2.5 to 4 hours). A free T4 can't merge 7B, so the notebook exports a LoRA adapter GGUF instead. The Modelfile then uses `FROM qwen2.5:7b-instruct` + `ADAPTER`, so run `ollama pull qwen2.5:7b-instruct` first. It runs slowly on a 16 GB laptop.
@@ -107,7 +107,7 @@ $env:PYTHONUTF8 = "1"
 python -m pytest -q tests/test_pipeline.py tests/test_agent.py tests/test_probes.py tests/test_persona.py tests/test_api.py tests/test_features.py tests/test_brain.py tests/test_cost.py tests/test_improvements.py tests/test_break_it.py tests/test_space.py tests/test_finetuned.py
 ollama list
 $env:OLLAMA_HOST = "http://127.0.0.1:11434"
-$env:FT_MODEL = "nimbuspay-router"
+$env:FT_MODEL = "gowtham-nimbuspay-agent"
 python finetune\eval_finetuned.py --mode both --skip-model-metrics
 python finetune\eval_finetuned.py --mode both
 ```

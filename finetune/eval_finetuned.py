@@ -1,5 +1,5 @@
 """Evaluate the fine-tuned brain and apply the release gate (works on Windows PowerShell 5.1 too; stdlib only + the repo).
-  ollama create nimbuspay-router -f Modelfile        # once, after downloading the GGUF from Colab
+  ollama create gowtham-nimbuspay-agent -f Modelfile        # once, after downloading the GGUF from Colab
   python finetune/eval_finetuned.py                  # model metrics on test.jsonl + gate for rules, hybrid and pure
   python finetune/eval_finetuned.py --mode hybrid --skip-model-metrics   # quick: end-to-end gate + latency only
   python finetune/eval_finetuned.py --limit 100      # quicker model metrics
@@ -107,7 +107,7 @@ def main():
     import ft_eval as E
     if not FT.ready():
         print(f"Fine-tuned model '{FT.ft_model()}' is not available in Ollama ({os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')}). "
-              "Run: ollama create nimbuspay-router -f Modelfile"); sys.exit(2)
+              "Run: ollama create gowtham-nimbuspay-agent -f Modelfile"); sys.exit(2)
     w = FT.warmup()
     print(f"Warm-up (model load) took {w} s" if w is not None else "Warm-up call failed; timings may include the model load", flush=True)
     report = {"warmup_s": w}

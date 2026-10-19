@@ -130,7 +130,7 @@ The UI follows the deck's brand: white background, charcoal `#222222`, orange `#
 |---|---|---|
 | Open model (default when available) | Ollama answers at `OLLAMA_HOST` and `OLLAMA_MODEL` is pulled | Install Ollama, then `ollama pull qwen2.5:3b-instruct` (about 2 GB) or `ollama pull llama3.2:3b`. On a low-memory laptop use `qwen2.5:1.5b-instruct` or `qwen2.5:0.5b-instruct` and set `OLLAMA_MODEL` to match. |
 | OpenAI-compatible API (optional) | No Ollama, and `LLM_API_KEY` or `OPENAI_API_KEY` is set | Optional `LLM_BASE_URL`, `LLM_MODEL` |
-| Fine-tuned router (opt-in) | `NP_BRAIN=finetuned` and `FT_MODEL` (default `nimbuspay-router`) is in Ollama | Train it on a free Colab T4 with [`finetune/`](finetune/README.md), then `ollama create nimbuspay-router -f Modelfile`. It ships only if it passes the release gate. Hybrid by default: guards and confident rules matches stay on rules, the model only routes the questions rules can't place (`FT_MODE=pure` to compare; settings in the finetune README). |
+| Fine-tuned router (opt-in) | `NP_BRAIN=finetuned` and `FT_MODEL` (default `gowtham-nimbuspay-agent`) is in Ollama | Train it on a free Colab T4 with [`finetune/`](finetune/README.md), then `ollama create gowtham-nimbuspay-agent -f Modelfile`. It ships only if it passes the release gate. Hybrid by default: guards and confident rules matches stay on rules, the model only routes the questions rules can't place (`FT_MODE=pure` to compare; settings in the finetune README). |
 | Rules engine (always available) | Otherwise, or `NP_BRAIN=rules` | Nothing |
 
 ```bash

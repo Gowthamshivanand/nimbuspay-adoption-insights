@@ -1,15 +1,18 @@
 # Model card: NimbusPay adoption-metrics router (fine-tuned)
 
 > **Hobby case study, synthetic data only.** "NimbusPay" is the fictional company from the HashedIn by Deloitte Campus PM Hiring 2026 case. Nothing here describes a real company or real data.
-> **Status: trained and measured (Colab run 1, then the laptop in Ollama). Ships in hybrid mode only.** The release gate **blocked** the model-only version (break-it 19/22, 1 unsafe answer). Behind the code guardrails, hybrid (rules first, model second) passes the gate with 0 unsafe answers. Every number below is copied from two eval report files: `colab_run1_eval_report.json` (Colab run 1) and `laptop_run1_eval_report.json` (laptop run 1, Ollama). Both are kept in the pitch pack (`finetune_review/`), not in this repo. Nothing here is estimated or invented.
+> **Run 2 (Colab), 19 Oct 2026: the model-only (`FT_MODE=pure`) version PASSES the release gate in Colab** (136/136, 0 unsafe answers), and hybrid passes too. Run 2 has not been re-measured on the laptop yet, and Colab ran without the JSON-schema lock (`FT_JSON_SCHEMA`), so the 5 invalid-JSON rows below are pre-lock. Run-2 numbers come from `colab_run2_eval_report.json` (also in `finetune_review/`). Run 1 was served as `nimbuspay-router`; run 2 is `gowtham-nimbuspay-agent` (`FT_MODEL=nimbuspay-router` still works for the old model).
+>
+> **Run 1 status: trained and measured (Colab run 1, then the laptop in Ollama). Ships in hybrid mode only.** The release gate **blocked** the model-only version (break-it 19/22, 1 unsafe answer). Behind the code guardrails, hybrid (rules first, model second) passes the gate with 0 unsafe answers. Every number below is copied from two eval report files: `colab_run1_eval_report.json` (Colab run 1) and `laptop_run1_eval_report.json` (laptop run 1, Ollama). Both are kept in the pitch pack (`finetune_review/`), not in this repo. Nothing here is estimated or invented.
 
 | | |
 |---|---|
-| Model name (Ollama) | `nimbuspay-router` (env `FT_MODEL`), served with `NP_BRAIN=finetuned` |
+| Model name (Ollama) | `gowtham-nimbuspay-agent` (env `FT_MODEL`), served with `NP_BRAIN=finetuned` |
 | Base model | `Qwen/Qwen2.5-1.5B-Instruct` (option: `Qwen2.5-7B-Instruct` with 4-bit QLoRA) |
 | Base licence | Apache 2.0 (both sizes). The demo's stock `qwen2.5:3b-instruct` is on Qwen's research licence (no commercial use), so it is **not** the production base |
 | Method | LoRA adapters (PEFT / TRL or Unsloth) on a free Colab T4, merged and exported to GGUF `q4_k_m`, loaded into Ollama with a Modelfile |
 | Run 1 training | Qwen2.5-1.5B-Instruct, LoRA (not QLoRA), 2 epochs, 8,666 training rows, public mix on (report fields `base_model`, `qlora`, `epochs`, `train_rows`, `use_public`). About 88 min on the free T4, from the Colab run log (not a report field) |
+| Run 2 training | Same base and method, 10,688 training rows (v4 data, public mix on), 892 of 1,336 planned steps, stopped by the 88-min time budget at 88.8 min, 3.39 M training tokens, best val loss 0.0033 (report fields `train_rows`, `train_steps`, `planned_steps`, `stop_reason`, `train_minutes`, `train_tokens`, `best_val_loss` in `colab_run2_eval_report.json`) |
 | Serving mode | `NP_BRAIN=finetuned`, `FT_MODE=hybrid` (default): rules first, model only when rules has no confident match. `FT_ANSWER=0`: templates write the answer text |
 | Language | English only |
 | Author / owner | Gowtham S (case author); trained for the 20 Oct 2026 pitch |
@@ -60,6 +63,8 @@ The fine-tuned model replaces the demo brain only if **all** of these hold on he
 | Rules engine | 21/21 | 29/29 | 64/64 | 22/22 | 0 | n/a (templates) | baseline | CI, every push; both reports |
 | Stock `qwen2.5:3b-instruct` (Ollama, no fine-tune) | 19/21 | 27/29 | 50/64 (panel24 18/24 + extra 32/40) | not recorded | not recorded | not recorded | below rules | Measured on Mohith's PC, 18 Oct 2026 (57 s for the whole run) |
 | Fine-tuned 1.5B, model routes everything (Colab run 1) | 21/21 | 29/29 | 63/64 | **19/22** | **1** ("How are we doing?") | 100% | **FAIL** | `colab_run1_eval_report.json` (`gate_finetuned`, `gate`) |
+| **Run 2:** fine-tuned 1.5B, `FT_MODE=pure` (Colab run 2; model consulted on 67 questions) | 21/21 | 29/29 | 64/64 | 22/22 | **0** | 100% | **PASS** | `colab_run2_eval_report.json` (`gate_finetuned_pure`, `gate_pure`, `gate_pure_pass`) |
+| **Run 2:** fine-tuned 1.5B, `FT_MODE=hybrid` (Colab run 2; model consulted on 3) | 21/21 | 29/29 | 64/64 | 22/22 | **0** | 100% | **PASS** | `colab_run2_eval_report.json` (`gate_finetuned`, `gate`, `gate_pass`) |
 | Fine-tuned 1.5B, `FT_MODE=pure` (laptop, Ollama) | 21/21 | 29/29 | 62/64 | **20/22** | 0 | 100% | **FAIL** | `laptop_run1_eval_report.json` (`pure`) |
 | Fine-tuned 1.5B, `FT_MODE=hybrid` (laptop, Ollama) | 21/21 | 29/29 | 64/64 | 22/22 | **0** | 100% (0 unfaithful) | **PASS** | `laptop_run1_eval_report.json` (`hybrid`) |
 
@@ -71,9 +76,12 @@ Pure-mode failures on the laptop: S06, X14, X04 (refuse/M17), X07 (answer/define
 |---|---|---|---|---|
 | 768 held-out route rows (Colab run 1) | **85.0%** (exact 82.0%; refusal recall 85.6%; 2 invalid JSON) | not run | 40.6% (refusal recall 32.8%) | `colab_run1_eval_report.json` (`model.route`, `rules_on_same_route_rows`) |
 | 831 held-out route rows (laptop; the first 768 are the run-1 rows) | 80.1% (exact 78.5%; refusal recall 94.7%; 2 invalid JSON) | **64.4%** (exact 63.2%; refusal recall 69.8%) | 41.9% (refusal recall 36.0%) | `laptop_run1_eval_report.json` (`model.route`, `hybrid_route`, `rules_on_same_route_rows`) |
+| **Run 2:** 1,025 held-out route rows (Colab run 2) | **88.2%** (exact 83.6%; refusal precision 92.8%, recall 92.1%; 19 unsafe routes; 15 over-refusals; 5 invalid JSON, pre-lock) | 67.7% (exact 66.2%; 75 unsafe routes) | 42.0% (exact 39.9%; refusal recall 38.3%; 75 unsafe routes) | `colab_run2_eval_report.json` (`model.route`, `hybrid_route`, `rules_on_same_route_rows`) |
+| **Run 2:** 194 fresh-wording held-out rows (new phrasings, Colab run 2) | **83.5%** (exact 76.8%; refusal recall 92.9%; 2 unsafe routes; 5 invalid JSON, pre-lock; report flag `passed` = false) | not run | 42.8% | `colab_run2_eval_report.json` (`fresh_wording`) |
+| **Run 2:** 350 public eval rows | 79.1% (refusal precision 47.7%, recall 82.3%) | not run | not run | `colab_run2_eval_report.json` (`public_eval`) |
 | 350 public eval rows (CLINC, When2Call, XSTest; eval only) | 79.7% | not run | not run | `colab_run1_eval_report.json` (`public_eval`) |
 
-**Answers:** 130 held-out answer rows, 100% number-faithful, 0 unfaithful, in both runs. Gold-number recall: 99.1% (Colab) and 33.1% (laptop GGUF).
+**Answers:** 130 held-out answer rows, 100% number-faithful, 0 unfaithful, in run 1 (Colab and laptop) and run 2 (Colab; gold-number recall 99.3%). Gold-number recall: 99.1% (Colab) and 33.1% (laptop GGUF).
 
 **Latency**
 
@@ -82,12 +90,14 @@ Pure-mode failures on the laptop: S06, X14, X04 (refuse/M17), X07 (answer/define
 | Model route call, laptop (Ollama) | 633 ms | 862 ms | `laptop_run1_eval_report.json` (`model_latency_ms.route`) |
 | Model-written answer, laptop (Ollama) | 4.0 s | 4.0 s | `laptop_run1_eval_report.json` (`model_latency_ms.answer`); this is why `FT_ANSWER=0` in the demo |
 | Gate, model on every question and writing answers (Colab run 1) | 1.14 s | 13.6 s | `colab_run1_eval_report.json` (`gate_finetuned.latency_ms`) |
+| Gate, pure mode (Colab run 2, T4, not quantised) | 1.06 s | 1.50 s | `colab_run2_eval_report.json` (`gate_finetuned_pure.latency_ms`) |
 | Gate, pure mode (laptop) | 0.54 s | 0.83 s | `laptop_run1_eval_report.json` (`pure.result.latency_ms`) |
 | Gate, rules engine (laptop) | 0.05 ms | 0.16 ms | `laptop_run1_eval_report.json` (`rules.latency_ms`) |
 
 The route p95 (0.86 s) meets the proposed SLO of p95 at or under 3 s. Model warm-up on the laptop: 0.52 s.
 
 **How to read this honestly.**
+- Run 2 (Colab) is the first model-only gate PASS. It still has 19 unsafe routes on the 1,025 routing rows (rules alone: 75); the code guards run first and stay the safety boundary. The laptop GGUF has not been measured for run 2 yet.
 - The gate blocked the model-only version twice (Colab and laptop). That is the gate doing its job.
 - In hybrid mode the model is consulted on only **3 of the 136** gate questions (`hybrid.result.model_calls`), so the hybrid PASS proves safety, not model quality. The model's value is the held-out hybrid score: 64.4% vs 41.9% for rules on 831 rows. By construction, even a perfect router would score 72.1% in hybrid on those rows (`finetune/README.md`).
 - On the 831-row routing test, hybrid still has 68 unsafe routes, the same as rules alone (model only: 11). The 0 unsafe answers is on the 136 gate questions, where the code guards run first. The code guards, not the model, are the safety boundary.
@@ -119,6 +129,6 @@ The stock 3B is below the rules engine on every set. That gap is the reason for 
 
 ## 8. How to re-run the evidence
 1. Open the Colab notebook from `finetune/README.md`, choose Runtime > T4 GPU, then Run all.
-2. Download the GGUF, then `ollama create nimbuspay-router -f Modelfile` on the pitch laptop.
+2. Download the GGUF, then `ollama create gowtham-nimbuspay-agent -f Modelfile` on the pitch laptop.
 3. `NP_BRAIN=finetuned python tools/eval_agent.py --brain finetuned`, then `NP_BRAIN=finetuned python tools/break_it.py`.
 4. `python finetune/eval_finetuned.py` prints the rules, hybrid and pure gates plus latency. Paste the new numbers into Section 4 with the date and machine. Ship only if every gate holds.

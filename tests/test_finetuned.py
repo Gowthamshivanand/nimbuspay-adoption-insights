@@ -291,7 +291,7 @@ def test_unreachable_ollama_means_rules(monkeypatch, base):
 class SlowOllama(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):
-        b = json.dumps({"models": [{"name": "nimbuspay-router:latest"}]}).encode()
+        b = json.dumps({"models": [{"name": "gowtham-nimbuspay-agent:latest"}]}).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(b)
     def do_POST(self):
         import time
@@ -302,7 +302,7 @@ class FakeOllama(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def _send(self, obj):
         b = json.dumps(obj).encode(); self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(b)
-    def do_GET(self): self._send({"models": [{"name": "nimbuspay-router:latest", "model": "nimbuspay-router:latest"}]})
+    def do_GET(self): self._send({"models": [{"name": "gowtham-nimbuspay-agent:latest", "model": "gowtham-nimbuspay-agent:latest"}]})
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"]))); FakeOllama.bodies.append(body)
         txt = '{"tool": "reliability", "args": {}}' if body.get("format") == "json" or isinstance(body.get("format"), dict) else "Agents are mostly within the gates. Source: M10."
@@ -316,12 +316,12 @@ def test_ollama_transport(monkeypatch, base):
         FT.FT_GENERATE = None
         monkeypatch.setenv("OLLAMA_HOST", f"http://127.0.0.1:{srv.server_port}"); monkeypatch.setenv("NP_BRAIN", "finetuned")
         monkeypatch.delenv("FT_ANSWER", raising=False); monkeypatch.delenv("FT_MODE", raising=False)
-        assert A.brain(refresh=True)["label"] == "Fine-tuned model (nimbuspay-router)"
+        assert A.brain(refresh=True)["label"] == "Fine-tuned model (gowtham-nimbuspay-agent)"
         r = A.Agent(*base).ask("which bots are flakiest", "platform_engineer")     # rules miss it -> hybrid asks the model
         assert r["intent"] == "reliability" and r["ft_route"] == "reliability" and "answer_by" not in r   # FT_ANSWER defaults to 0
         b0 = FakeOllama.bodies[0]
         assert isinstance(b0["format"], dict) and "anyOf" in b0["format"]                     # FT_JSON_SCHEMA default on
-        assert b0["model"] == "nimbuspay-router" and b0["options"]["temperature"] == 0 and b0["keep_alive"] == "30m" and len(FakeOllama.bodies) == 1
+        assert b0["model"] == "gowtham-nimbuspay-agent" and b0["options"]["temperature"] == 0 and b0["keep_alive"] == "30m" and len(FakeOllama.bodies) == 1
         monkeypatch.setenv("FT_ANSWER", "1")
         r = A.Agent(*base).ask("which bots are flakiest", "platform_engineer")
         assert r["answer_by"] == "model (number-checked)"
@@ -459,9 +459,9 @@ def test_models_tab_sees_the_finetuned_brain(monkeypatch):
     assert M.available("finetuned")[0] is False
     FT.FT_GENERATE = lambda m, k: '{"tool": "none", "args": {}}'
     try:
-        assert M.available("finetuned") == (True, "nimbuspay-router via Ollama")
+        assert M.available("finetuned") == (True, "gowtham-nimbuspay-agent via Ollama")
         monkeypatch.setenv("NP_BRAIN", "finetuned")
-        assert A.brain_info()["kind"] == "finetuned" and A.brain_info()["ollama_model"] == "nimbuspay-router"
+        assert A.brain_info()["kind"] == "finetuned" and A.brain_info()["ollama_model"] == "gowtham-nimbuspay-agent"
     finally:
         FT.FT_GENERATE = None; monkeypatch.setenv("NP_BRAIN", "rules"); A.brain(refresh=True)
 
@@ -583,3 +583,16 @@ def test_dataset_v4_fresh_wording_contrast_and_audit():
     assert max(seen.values()) <= 2                                 # near-duplicate cap: same text at most twice
     pub = load("public_train")
     assert not any(r["source"] == "public:fetaqa" for r in pub) and sum(r["task"] == "chat" for r in pub) <= 250
+
+
+def test_model_name_default_and_legacy_override(monkeypatch):
+    monkeypatch.delenv("FT_MODEL", raising=False)
+    assert FT.ft_model() == "gowtham-nimbuspay-agent"
+    monkeypatch.setenv("FT_MODEL", "nimbuspay-router")          # run-1 model name still works
+    assert FT.ft_model() == "nimbuspay-router"
+    sent = {}
+    monkeypatch.setattr(A, "_http_json", lambda url, body=None, timeout=None: sent.update(body or {}) or
+                        ({"models": [{"name": "nimbuspay-router:latest"}]} if url.endswith("/api/tags") else {"message": {"content": "{}"}}))
+    assert FT.ready()
+    FT.generate(FT.route_messages("hi", "executive"), "route")
+    assert sent["model"] == "nimbuspay-router"

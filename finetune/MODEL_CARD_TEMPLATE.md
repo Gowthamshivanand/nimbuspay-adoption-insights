@@ -3,9 +3,9 @@ license: apache-2.0
 base_model: {{BASE_MODEL}}
 language: [en]
 tags: [lora, routing, tool-use, refusal, synthetic-data, gguf, ollama]
-datasets: [{{HF_USER}}/nimbuspay-router-data]
+datasets: [{{HF_USER}}/gowtham-nimbuspay-agent-data]
 ---
-# nimbuspay-router ({{BASE_MODEL}} + {{METHOD}})
+# gowtham-nimbuspay-agent ({{BASE_MODEL}} + {{METHOD}})
 
 **Hobby project, synthetic data only.** This is the router and answer writer for the NimbusPay Adoption Insights Agent, a case-study app at
 https://github.com/mohithraghava/nimbuspay-adoption-insights. It has no link to the real NimbusPay or any real company.
@@ -37,7 +37,7 @@ It is **not** a general assistant. Use it only behind the app's code, because th
 
 ## Use with Ollama
 ```
-ollama create nimbuspay-router -f Modelfile
+ollama create gowtham-nimbuspay-agent -f Modelfile
 set NP_BRAIN=finetuned        (PowerShell: $env:NP_BRAIN="finetuned")
 python -m app
 ```

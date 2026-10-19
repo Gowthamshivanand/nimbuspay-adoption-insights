@@ -24,10 +24,10 @@ MODEL_CHOICE = "1.5B"     # "1.5B" (default: fp16 LoRA, ~55-105 min for 2 epochs
 EPOCHS = None             # None = 2 for 1.5B, 1 for 7B. EPOCHS = 1 halves the time
 USE_PUBLIC = True         # add finetune/data/public_train.jsonl (attributed public sample, CC-BY-SA-4.0 as a combined file)
 PUSH_TO_HF = False        # True = upload model + dataset to YOUR Hugging Face account (asks for a token, never stored here)
-HF_MODEL_REPO = "nimbuspay-router-qwen2.5-" + MODEL_CHOICE.lower()   # created under your HF username
-HF_DATASET_REPO = "nimbuspay-router-data"
+HF_MODEL_REPO = "gowtham-nimbuspay-agent-qwen2.5-" + MODEL_CHOICE.lower()   # created under your HF username
+HF_DATASET_REPO = "gowtham-nimbuspay-agent-data"
 REPO = "mohithraghava/nimbuspay-adoption-insights"; BRANCH = "main"
-OLLAMA_NAME = "nimbuspay-router"
+OLLAMA_NAME = "gowtham-nimbuspay-agent"
 
 import os, sys, json, time, subprocess
 SMOKE = os.environ.get("NP_SMOKE") == "1"          # local CPU smoke test only (tiny model, 20 steps); leave unset on Colab
@@ -284,15 +284,15 @@ if PUSH_TO_HF and not SMOKE:
 else:
     print("Skipped (PUSH_TO_HF is False).")
 ''')
-md("## 12. Download the GGUF + Modelfile to your PC\nThen on Windows, in the folder with both files: `ollama create nimbuspay-router -f Modelfile` and test with `python finetune/eval_finetuned.py` in the repo.")
+md("## 12. Download the GGUF + Modelfile to your PC\nThen on Windows, in the folder with both files: `ollama create gowtham-nimbuspay-agent -f Modelfile` and test with `python finetune/eval_finetuned.py` in the repo.")
 code(r'''
 if not SMOKE:
-    sh(f"cd {WORK} && zip -j -0 nimbuspay-router-export.zip {EXPORT}/*")
+    sh(f"cd {WORK} && zip -j -0 gowtham-nimbuspay-agent-export.zip {EXPORT}/*")
     try:
         from google.colab import files
-        files.download(os.path.join(WORK, "nimbuspay-router-export.zip"))
+        files.download(os.path.join(WORK, "gowtham-nimbuspay-agent-export.zip"))
     except Exception as e:
-        print("Download from the Files panel on the left instead:", os.path.join(WORK, "nimbuspay-router-export.zip"), e)
+        print("Download from the Files panel on the left instead:", os.path.join(WORK, "gowtham-nimbuspay-agent-export.zip"), e)
 ''')
 
 nb = dict(cells=cells, metadata={"accelerator": "GPU", "colab": {"provenance": [], "gpuType": "T4"},

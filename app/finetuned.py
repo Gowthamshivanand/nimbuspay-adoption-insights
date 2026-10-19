@@ -25,7 +25,7 @@ FT_GENERATE = None     # optional callable(messages, kind) -> str; the Colab not
 
 
 def ft_model():
-    return os.environ.get("FT_MODEL", "nimbuspay-router")
+    return os.environ.get("FT_MODEL", "gowtham-nimbuspay-agent")
 
 
 def tool_names():
