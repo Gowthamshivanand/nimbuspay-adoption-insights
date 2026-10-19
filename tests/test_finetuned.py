@@ -315,7 +315,7 @@ def test_ollama_transport(monkeypatch, base):
     try:
         FT.FT_GENERATE = None
         monkeypatch.setenv("OLLAMA_HOST", f"http://127.0.0.1:{srv.server_port}"); monkeypatch.setenv("NP_BRAIN", "finetuned")
-        monkeypatch.delenv("FT_ANSWER", raising=False); monkeypatch.delenv("FT_MODE", raising=False)
+        monkeypatch.delenv("FT_ANSWER", raising=False); monkeypatch.delenv("FT_MODE", raising=False); monkeypatch.delenv("FT_KEEP_ALIVE", raising=False)
         assert A.brain(refresh=True)["label"] == "Fine-tuned model (gowtham-nimbuspay-agent)"
         r = A.Agent(*base).ask("which bots are flakiest", "platform_engineer")     # rules miss it -> hybrid asks the model
         assert r["intent"] == "reliability" and r["ft_route"] == "reliability" and "answer_by" not in r   # FT_ANSWER defaults to 0
