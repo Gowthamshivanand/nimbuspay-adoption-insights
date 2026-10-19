@@ -26,7 +26,7 @@ USE_PUBLIC = True         # add finetune/data/public_train.jsonl (attributed pub
 PUSH_TO_HF = False        # True = upload model + dataset to YOUR Hugging Face account (asks for a token, never stored here)
 HF_MODEL_REPO = "gowtham-nimbuspay-agent-qwen2.5-" + MODEL_CHOICE.lower()   # created under your HF username
 HF_DATASET_REPO = "gowtham-nimbuspay-agent-data"
-REPO = "mohithraghava/nimbuspay-adoption-insights"; BRANCH = "main"
+REPO = "Gowthamshivanand/nimbuspay-adoption-insights"; BRANCH = "main"
 OLLAMA_NAME = "gowtham-nimbuspay-agent"
 
 import os, sys, json, time, subprocess

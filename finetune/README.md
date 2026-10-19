@@ -1,6 +1,6 @@
 # Fine-tuning the agent's brain (LoRA on a free Colab T4)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mohithraghava/nimbuspay-adoption-insights/blob/main/finetune/NimbusPay_FineTune_Colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Gowthamshivanand/nimbuspay-adoption-insights/blob/main/finetune/NimbusPay_FineTune_Colab.ipynb)
 
 Hobby case study, English only. The NimbusPay data is synthetic; a small attributed public sample is mixed in (see `data/README.md`).
 
@@ -100,7 +100,7 @@ See [`modal/README.md`](modal/README.md): full 1.5B run 3 and the 7B on Modal GP
 One command per line, no `&&` / `||`. Run them in a new PowerShell window, in the folder where you want the repo. If `python` is not found, use `py` instead. `PYTHONUTF8=1` makes Python read the repo's UTF-8 files the same way as on Linux.
 ```powershell
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-Invoke-WebRequest -Uri "https://github.com/mohithraghava/nimbuspay-adoption-insights/archive/refs/heads/main.zip" -OutFile "nimbuspay-main.zip" -UseBasicParsing
+Invoke-WebRequest -Uri "https://github.com/Gowthamshivanand/nimbuspay-adoption-insights/archive/refs/heads/main.zip" -OutFile "nimbuspay-main.zip" -UseBasicParsing
 Expand-Archive -Path "nimbuspay-main.zip" -DestinationPath "." -Force
 Set-Location ".\nimbuspay-adoption-insights-main"
 python -m venv .venv
