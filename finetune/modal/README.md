@@ -39,9 +39,9 @@ modal setup
 ```powershell
 python finetune\modal\train_modal.py --estimate
 modal run finetune\modal\train_modal.py --smoke
-modal run finetune\modal\train_modal.py --model 1.5B
+modal run --detach finetune\modal\train_modal.py --model 1.5B
 ```
-The last command prints the side-by-side table (HF against each GGUF), the shipped quant (q8_0 by default for 1.5B, about 1.6 GB) and the decision. It also prints the estimated cost from container seconds and the download command:
+The whole pipeline runs in a small Modal orchestrator container (1 CPU). With `--detach` you can close the window, and the run keeps going: follow it with `modal app logs <app id>`. It writes `runs/<run>/run_summary.json` at the end. To rebuild only the zip and eval_report.json from an existing run, with no training and CPU only: `modal run finetune\modal\train_modal.py --model 1.5B --package-only 1.5b-20261019-131131`. The last command prints the side-by-side table (HF against each GGUF), the shipped quant (q8_0 by default for 1.5B, about 1.6 GB) and the decision. It also prints the estimated cost from container seconds and the download command:
 ```powershell
 modal volume get gowtham-nimbuspay-models runs/1.5b-latest/gowtham-nimbuspay-agent-export.zip .
 Expand-Archive -Path ".\gowtham-nimbuspay-agent-export.zip" -DestinationPath ".\run3" -Force

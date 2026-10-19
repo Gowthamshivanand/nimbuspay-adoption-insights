@@ -1,6 +1,8 @@
 # Model card: NimbusPay adoption-metrics router (fine-tuned)
 
 > **Hobby case study, synthetic data only.** "NimbusPay" is the fictional company from the HashedIn by Deloitte Campus PM Hiring 2026 case. Nothing here describes a real company or real data.
+> **Run 3 (Modal, A100), 19 Oct 2026: the shipped GGUF itself passes.** Full 1.5B retrain, all 1,336 planned steps. Unlike run 2, the release decision is taken on the exported `q8_0` GGUF running in Ollama (the same runtime as the laptop), not on the HF weights. The q8_0 GGUF passes the pure gate (136/136, 0 unsafe answers) and beats run 2: held-out 90.1% vs 88.2%, fresh wording 88.7% vs 83.5%, 7 unsafe routes vs 19. Numbers come from `finetune_review/run3/eval_report.json` and the `eval_report_gguf_<quant>.json` files. See "Run 3" under Results.
+>
 > **Run 2 (Colab), 19 Oct 2026: the model-only (`FT_MODE=pure`) version PASSES the release gate in Colab** (136/136, 0 unsafe answers), and hybrid passes too. Run 2 has not been re-measured on the laptop yet, and Colab ran without the JSON-schema lock (`FT_JSON_SCHEMA`), so the 5 invalid-JSON rows below are pre-lock. Run-2 numbers come from `colab_run2_eval_report.json` (also in `finetune_review/`). Run 1 was served as `nimbuspay-router`; run 2 is `gowtham-nimbuspay-agent` (`FT_MODEL=nimbuspay-router` still works for the old model).
 >
 > **Run 1 status: trained and measured (Colab run 1, then the laptop in Ollama). Ships in hybrid mode only.** The release gate **blocked** the model-only version (break-it 19/22, 1 unsafe answer). Behind the code guardrails, hybrid (rules first, model second) passes the gate with 0 unsafe answers. Every number below is copied from two eval report files: `colab_run1_eval_report.json` (Colab run 1) and `laptop_run1_eval_report.json` (laptop run 1, Ollama). Both are kept in the pitch pack (`finetune_review/`), not in this repo. Nothing here is estimated or invented.
@@ -13,6 +15,7 @@
 | Method | LoRA adapters (PEFT / TRL or Unsloth) on a free Colab T4, merged and exported to GGUF `q4_k_m`, loaded into Ollama with a Modelfile |
 | Run 1 training | Qwen2.5-1.5B-Instruct, LoRA (not QLoRA), 2 epochs, 8,666 training rows, public mix on (report fields `base_model`, `qlora`, `epochs`, `train_rows`, `use_public`). About 88 min on the free T4, from the Colab run log (not a report field) |
 | Run 2 training | Same base and method, 10,688 training rows (v4 data, public mix on), 892 of 1,336 planned steps, stopped by the 88-min time budget at 88.8 min, 3.39 M training tokens, best val loss 0.0033 (report fields `train_rows`, `train_steps`, `planned_steps`, `stop_reason`, `train_minutes`, `train_tokens`, `best_val_loss` in `colab_run2_eval_report.json`) |
+| Run 3 training | Same base, data and LoRA settings as run 2, on a Modal A100-80GB (bf16). All 1,336 of 1,336 planned steps in 33.0 min (`stop_reason` all epochs; early stopping patience 3 did not trigger), best val loss 0.0030, 3.39 M tokens per epoch. Exported to f16, q8_0, q5_k_m and q4_k_m GGUF, each one evaluated in Ollama. **Ships q8_0** (`finetune/modal/train_modal.py`, report `finetune_review/run3/eval_report.json`) |
 | Serving mode | `NP_BRAIN=finetuned`, `FT_MODE=hybrid` (default): rules first, model only when rules has no confident match. `FT_ANSWER=0`: templates write the answer text |
 | Language | English only |
 | Author / owner | Gowtham S (case author); trained for the 20 Oct 2026 pitch |
@@ -104,6 +107,34 @@ The route p95 (0.86 s) meets the proposed SLO of p95 at or under 3 s. Model warm
 - The model-only score on the laptop GGUF (80.1% on 831 rows) is lower than in Colab (85.0% on 768 rows). The row sets differ, and the GGUF is quantised (`q4_k_m`); the reports do not separate the two effects.
 
 The stock 3B is below the rules engine on every set. That gap is the reason for the fine-tune, and the fine-tuned model ships only in hybrid mode because only hybrid passed the gate. In every probe the 3B got wrong, the code guards still ran first, so a wrong pick could only give a wrong but governed answer. Restricted data stays behind the code guards and role scope, which no model output can skip.
+
+### Run 3 (Modal): HF weights vs the GGUF files that ship
+
+Same eval for every column: 1,025 held-out route rows, 194 fresh-wording rows, 130 answer rows and the 136-question gate. The GGUF columns were run through Ollama 0.40.6 on an L4 with `format: "json"` (the app default `FT_JSON_SCHEMA=0`) and `repeat_penalty 1`. Source files: `eval_report_hf.json` and `eval_report_gguf_<quant>.json` in `finetune_review/run3/`.
+
+| Metric | HF bf16 (training eval) | GGUF f16 | **GGUF q8_0 (ships)** | GGUF q5_k_m | GGUF q4_k_m |
+|---|---|---|---|---|---|
+| Held-out route tool acc (1,025) | 90.8% | 90.1% | **90.1%** | 90.0% | 90.6% |
+| Exact (tool + args) | 87.5% | 88.7% | 88.8% | 88.6% | 89.1% |
+| Fresh wording tool acc (194) | 87.6% | 89.2% | **88.7%** | 87.6% | 91.2% |
+| Refusal precision / recall | 94.3% / 91.3% | 85.9% / 96.4% | 86.3% / 96.8% | 86.2% / 96.4% | 86.6% / 96.8% |
+| Unsafe routes (of 1,025) | 19 | 8 | **7** | 8 | 7 |
+| Over-refusals | 11 | 37 | 36 | 37 | 36 |
+| Invalid JSON | 7 | 7 | 8 | 7 | 5 |
+| Answers: number-faithful / gold-number recall (130) | 100% / 99.3% | 98.5% / 99.4% | 98.5% / 99.4% | 98.5% / 99.4% | 98.5% / 99.4% |
+| Hybrid route tool acc | 68.5% | 68.4% | 68.2% | 68.4% | 68.3% |
+| Same route as HF | n/a | 92.9% (tool 94.9%) | 93.0% (tool 95.0%) | 91.5% (tool 93.7%) | 89.8% (tool 92.0%) |
+| Gate, pure (golden / probes / unscripted / break-it) | PASS | PASS 21/29/64/22 | **PASS 21/21, 29/29, 64/64, 22/22** | PASS | PASS |
+| Gate, hybrid | PASS | PASS | PASS | PASS | PASS |
+| Pure-gate latency p50 / p95 (L4) | n/a | 198 / 322 ms | 126 / 201 ms | 100 / 157 ms | 95 / 148 ms |
+| Route call p50 / p95 (L4, 4 parallel) | n/a | 409 / 585 ms | 276 / 373 ms | 228 / 313 ms | 220 / 294 ms |
+
+- **q8_0 pure gate details:** golden 21/21, probes 29/29, unscripted 64/64, break-it 22/22. 0 unsafe answers, 0 unfaithful answers, the model was consulted on 67 questions, and every gate check is true.
+- **Release rule** (use only if it passes the pure gate and beats run 2's 88.2% held-out, 83.5% fresh and 19 unsafe routes), decided on q8_0: **PASS, use it.** The advisory flag `fresh_wording.passed` is still false. It needs 0 invalid JSON and 0 unsafe routes on the 194 fresh rows, and q8_0 has 8 invalid JSON rows there (0 unsafe). Invalid JSON falls back to rules in the app.
+- **Template and tokenisation parity:** the Ollama-rendered prompt and the HF chat template matched on 6/6 rows, string and token IDs both (`add_bos_token` false, EOS `<|im_end|>` 151645). Chat and raw prompts gave the same output on 20/20 rows for every quant.
+- **The two unfaithful answers** in the GGUF answer rows (one is test-00806) contain one extra number. In the app the number check rejects them and the template text is used instead, and the demo runs with `FT_ANSWER=0` anyway.
+- **Why run 2 dropped on the laptop (41.2% fresh).** The likeliest cause is the JSON-schema `format`, not quantisation. Ollama reorders the schema keys alphabetically, which forces `"args"` before `"tool"`. In a smoke check, HF and GGUF agreed on 0/40 routes with the schema and 9/40 with plain JSON. `FT_JSON_SCHEMA` now defaults to 0. Not yet re-measured on the laptop: run `finetune/eval_finetuned.py` there with the run-3 q8_0.
+- **Measured on Modal L4 GPUs, not the pitch laptop.** Laptop latency on CPU will be higher.
 
 ## 5. Safety design (why a wrong model output can't do harm)
 1. **Code guards run first,** before any model: prompt injection, read-only/write, PII, individuals, groups under 5, role scope, forecast, causal and ungoverned metrics. The model may refuse **more** than the guards, never less.

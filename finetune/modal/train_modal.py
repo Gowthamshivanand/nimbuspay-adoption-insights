@@ -34,7 +34,7 @@ CPU_S, MEM_S = 0.0000131, 0.00000222
 TRAIN_RES, EXPORT_RES, EVAL_RES = (4, 32), (8, 32), (4, 16)       # (cores, GiB) requested per step; billed too
 # Per-step timeouts keep the worst case inside the approved $10 total (see README). Training stops itself earlier (budget_min).
 DEFAULTS = {"7B": dict(gpu="H100", train_timeout_min=70, budget_min=40, eval_timeout_min=35, quants=["q8_0", "q5_k_m", "q4_k_m"]),
-            "1.5B": dict(gpu="A100-80GB", train_timeout_min=45, budget_min=28, eval_timeout_min=20, quants=["f16", "q8_0", "q5_k_m", "q4_k_m"])}
+            "1.5B": dict(gpu="A100-80GB", train_timeout_min=60, budget_min=34, eval_timeout_min=20, quants=["f16", "q8_0", "q5_k_m", "q4_k_m"])}
 EXPORT_TIMEOUT_MIN, EVAL_TIMEOUT_MIN, SMOKE_TIMEOUT_MIN = 30, 35, 30
 # Estimates (NOT measured on Modal yet) per step, minutes. v4 data with the public mix: 10,688 rows, 3.39M tokens per epoch,
 # 668 steps per epoch at batch 16, 2 epochs = 1,336 steps.
@@ -214,28 +214,20 @@ def print_estimates():
     print("Serving (serve_modal.py, 2 cores + 12 GiB) per hour awake: " + ", ".join(f"{g} ${(PRICES[g] + 2 * CPU_S + 12 * MEM_S) * 3600:.2f}" for g in ("L4", "A10")))
 
 
-@app.local_entrypoint()
-def main(model: str = "1.5B", gpu: str = "", eval_gpu: str = "L4", epochs: int = 2, use_public: bool = True, qlora: bool = False,
-         smoke: bool = False, quants: str = "", ship: str = "q8_0", budget_min: float = 0, train_timeout_min: int = 0, push_hf: bool = False,
-         skip_train: str = ""):
-    if model not in DEFAULTS: raise SystemExit("--model must be 7B or 1.5B")
-    d = DEFAULTS[model]; gpu = "CPU" if smoke else (gpu or d["gpu"]); eval_gpu = "CPU" if smoke else eval_gpu
-    qs = [q.strip() for q in quants.split(",") if q.strip()] or (["q8_0"] if smoke else d["quants"])
-    run = skip_train or f"{model.lower()}-{'smoke-' if smoke else ''}{time.strftime('%Y%m%d-%H%M%S')}"
-    o = dict(model=model, gpu=gpu, eval_gpu=eval_gpu, epochs=epochs, use_public=use_public, qlora=qlora, smoke=smoke, quants=qs, ship=ship,
-             budget_min=budget_min or (8 if smoke else d["budget_min"]), push_hf=push_hf, run_name=run)
-    tmo = (SMOKE_TIMEOUT_MIN if smoke else (train_timeout_min or d["train_timeout_min"])) * 60
-    print(f"Run {run}: {model} {'QLoRA' if qlora else 'bf16 LoRA'} on {gpu}, {epochs} epochs, public mix {'on' if use_public else 'off'}, "
-          f"training cap {o['budget_min']} min, train timeout {tmo // 60} min, GGUF evals {qs} on {eval_gpu}, ship {ship}")
+def pipeline(o: dict, tmo: int, push_hf: bool) -> dict:
+    """train -> export (+ template parity) -> GGUF evals in Ollama -> package. Runs in the
+    `orchestrate` container (default) so a dropped laptop / client cannot cancel the run."""
+    smoke, model, qs = o["smoke"], o["model"], o["quants"]; d = DEFAULTS[model]; run = o["run_name"]
     steps = {}; t0 = time.time()
     hf_secret = [modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])] if push_hf else []
-    if not skip_train:
-        steps["train"] = train.with_options(timeout=tmo, **({"cpu": 4, "memory": 12 * 1024} if smoke else {"gpu": gpu})).remote(o)
+    if not o.get("skip_train"):
+        steps["train"] = train.with_options(timeout=tmo, **({"cpu": 4, "memory": 12 * 1024} if smoke else {"gpu": o["gpu"]})).remote(o)
         print("train:", json.dumps(steps["train"]), f"cost ~${step_cost(steps['train'])}", flush=True)
     steps["export"] = export.remote(o); print("export:", json.dumps(steps["export"]), f"cost ~${step_cost(steps['export'])}", flush=True)
-    ev = gguf_eval.with_options(**({"timeout": SMOKE_TIMEOUT_MIN * 60} if smoke else {"gpu": eval_gpu, "timeout": d["eval_timeout_min"] * 60}))
-    evals = list(ev.starmap([(o, q) for q in qs]))
-    for e in evals: print("gguf_eval:", json.dumps(e), f"cost ~${step_cost(e)}", flush=True)
+    ev = gguf_eval.with_options(**({"timeout": SMOKE_TIMEOUT_MIN * 60} if smoke else {"gpu": o["eval_gpu"], "timeout": d["eval_timeout_min"] * 60}))
+    evals = list(ev.starmap([(o, q) for q in qs], return_exceptions=True))
+    evals = [e if isinstance(e, dict) else dict(quant=q, ok=False, error=repr(e)[:500]) for e, q in zip(evals, qs)]
+    for e in evals: print("gguf_eval:", json.dumps(e, default=str), f"cost ~${step_cost(e)}", flush=True)
     steps["gguf_eval"] = evals
     o["steps"] = steps
     pk = package.with_options(secrets=hf_secret).remote(o, [e["quant"] for e in evals if e.get("ok")])
@@ -248,9 +240,48 @@ def main(model: str = "1.5B", gpu: str = "", eval_gpu: str = "L4", epochs: int =
     print(f"Wall time {(time.time() - t0) / 60:.1f} min. Estimated compute cost of this run: ${total:.2f} "
           f"(list prices x container seconds; the Modal dashboard Usage page is the real figure).")
     sub = f"runs/{model.lower()}{'-smoke' if smoke else ''}-latest/{pk['zip']}"
-    print(f"\nDownload:  modal volume get {VOLUME_NAME} {sub} .\nAll files:  modal volume ls {VOLUME_NAME} runs/{run}")
-    json.dump(dict(run=run, steps=steps, estimated_cost_usd=round(total, 2)), open(f"modal_run_{run}.json", "w"), indent=1, default=str)
+    print(f"\nDownload:  modal volume get {VOLUME_NAME} {sub} .\nAll files:  modal volume ls {VOLUME_NAME} runs/{run}", flush=True)
+    return dict(run=run, steps=steps, estimated_cost_usd=round(total, 2), wall_min=round((time.time() - t0) / 60, 1))
 
+
+@app.function(image=image, volumes=VOLS, timeout=4 * 3600, cpu=1, memory=1024)
+def orchestrate(o: dict, tmo: int, push_hf: bool) -> dict:
+    res = pipeline(o, tmo, push_hf)
+    res["orchestrator"] = dict(seconds=res["wall_min"] * 60, cores=1, mem=1)
+    res["estimated_cost_usd"] = round(res["estimated_cost_usd"] + step_cost(res["orchestrator"]), 2)
+    os.makedirs(_rundir(o), exist_ok=True)
+    json.dump(res, open(os.path.join(_rundir(o), "run_summary.json"), "w"), indent=1, default=str); models_vol.commit()
+    print(f"run_summary: /vol/runs/{o['run_name']}/run_summary.json  estimated total ${res['estimated_cost_usd']}", flush=True)
+    return res
+
+
+@app.local_entrypoint()
+def main(model: str = "1.5B", gpu: str = "", eval_gpu: str = "L4", epochs: int = 2, use_public: bool = True, qlora: bool = False,
+         smoke: bool = False, quants: str = "", ship: str = "q8_0", budget_min: float = 0, train_timeout_min: int = 0, push_hf: bool = False,
+         skip_train: str = "", local_orchestrate: bool = False, package_only: str = ""):
+    if model not in DEFAULTS: raise SystemExit("--model must be 7B or 1.5B")
+    d = DEFAULTS[model]; gpu = "CPU" if smoke else (gpu or d["gpu"]); eval_gpu = "CPU" if smoke else eval_gpu
+    qs = [q.strip() for q in quants.split(",") if q.strip()] or (["q8_0"] if smoke else d["quants"])
+    run = skip_train or f"{model.lower()}-{'smoke-' if smoke else ''}{time.strftime('%Y%m%d-%H%M%S')}"
+    o = dict(model=model, gpu=gpu, eval_gpu=eval_gpu, epochs=epochs, use_public=use_public, qlora=qlora, smoke=smoke, quants=qs, ship=ship,
+             budget_min=budget_min or (8 if smoke else d["budget_min"]), push_hf=push_hf, run_name=run, skip_train=bool(skip_train))
+    tmo = (SMOKE_TIMEOUT_MIN if smoke else (train_timeout_min or d["train_timeout_min"])) * 60
+    print(f"Run {run}: {model} {'QLoRA' if qlora else 'bf16 LoRA'} on {gpu}, {epochs} epochs, public mix {'on' if use_public else 'off'}, "
+          f"training cap {o['budget_min']} min, train timeout {tmo // 60} min, GGUF evals {qs} on {eval_gpu}, ship {ship}", flush=True)
+    if package_only:
+        # Re-package an existing run dir (reports + GGUFs already on the volume); CPU only, cents.
+        o.update(run_name=package_only, skip_train=True)
+        pk = package.remote(o, qs); res = dict(run=package_only, steps=dict(package=pk), estimated_cost_usd=step_cost(pk))
+        print(f"Shipped: {pk['ship']}  ({pk['zip']}, {pk['zip_gib']} GiB)  decision {json.dumps(pk['decision']['checks'])}", flush=True)
+    elif local_orchestrate:
+        res = pipeline(o, tmo, push_hf)
+    else:
+        # Default: the whole pipeline runs in a small Modal container. With `modal run --detach`
+        # you can close the terminal; follow it with `modal app logs <app id>`.
+        call = orchestrate.spawn(o, tmo, push_hf)
+        print(f"orchestrator call: {call.object_id}  (summary -> runs/{run}/run_summary.json on volume {VOLUME_NAME})", flush=True)
+        res = call.get()
+    json.dump(res, open(f"modal_run_{run}.json", "w"), indent=1, default=str)
 
 if __name__ == "__main__":
     if "--estimate" in sys.argv: print_estimates()
