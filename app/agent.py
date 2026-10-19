@@ -576,13 +576,17 @@ class Agent:
         persona = resolve_persona(persona)                  # deny by default: unknown or missing role -> least privilege
         g = self.guards(q, persona)                      # safety guards are ALWAYS deterministic and run first
         if g:
-            g["mode"] = "rules (guard)"; return g
+            g["mode"] = "rules (guard)"
+            if brain()["kind"] == "finetuned": g["answered_by"] = "rules"
+            return g
         q = re.sub(r"<[^<>]{0,300}>", " ", q).strip() or q   # markup is text, never routing input (e.g. '<img onerror=alert(1)>' is not an 'alerts' question)
         claims = claimed_numbers(q)
         b = brain()
         fn, mode, args, ft_note, ft_route = None, "rules", {}, None, None
+        ft_src = ft_remote_err = None
         if is_vague(q) and not (prev and b["kind"] == "finetuned"):   # 'How are we doing?': ask, never guess (every brain)
             r = self.vague(q); r["mode"] = "rules (clarify)"; r["persona"] = persona
+            if b["kind"] == "finetuned": r["answered_by"] = "rules"
             return r
         use_model = b["kind"] == "finetuned"
         if use_model and ft_mode() == "hybrid":          # rules first, model second
@@ -593,21 +597,22 @@ class Agent:
         if use_model:
             d = FT.route(q, persona, prev, self.agents, self.regions())   # schema-checked; None on any failure (incl. FT_TIMEOUT_S)
             ft_route = (d["tool"] if d else "invalid")
+            ft_src, ft_remote_err = FT.last_source() or "fine-tuned model", FT.last_remote_error()   # Modal 7B / laptop 1.5B
             if (d and d["tool"] not in ("refuse", "none") and ft_mode() == "hybrid" and not prev
                     and not self.route(q) and not in_domain(q)):
                 d, ft_note = {"tool": "none", "args": {}}, "off-domain model route ignored"   # e.g. a joke routed to a data tool
             if d and d["tool"] == "refuse":              # the model may refuse MORE than the guards, never less
                 r = self.refusal(d["args"]["reason"], persona); r["mode"] = b["label"] + " (refuse)"; r["persona"] = persona
-                r["ft_route"] = ft_route; return r
+                r["ft_route"] = ft_route; r["answered_by"] = ft_src; return r
             if d and d["tool"] == "none" and d["args"].get("clarify"):   # ask instead of guessing (no rules fallback)
                 r = self.clarify(q, d["args"]["clarify"]); r["mode"] = b["label"] + " (clarify)"; r["persona"] = persona
-                r["ft_route"] = ft_route; return r
+                r["ft_route"] = ft_route; r["answered_by"] = ft_src; return r
             if d and d["tool"] != "none":
                 missing = FT.REQUIRED_ARGS.get(d["tool"], set()) - set(d["args"])
                 if missing:                              # required args missing: ask, never guess (a tool the role may not
                     # use is still denied below: no_role for role-less callers, scope refusal for out-of-scope regions)
                     r = self.clarify(q, "topic"); r["mode"] = b["label"] + " (clarify)"; r["persona"] = persona
-                    r["ft_route"] = ft_route
+                    r["ft_route"] = ft_route; r["answered_by"] = ft_src
                     r["clarify_reason"] = "missing args: " + ", ".join(sorted(missing))
                     return r
                 fn, args, mode = d["tool"], d["args"], b["label"]
@@ -641,6 +646,9 @@ class Agent:
             r = self._claim_check(r, claims)
         if ft_note and mode == "rules (fallback)": r["fallback_reason"] = ft_note
         if ft_route: r["ft_route"] = ft_route
+        if b["kind"] == "finetuned":                     # which brain produced this route: Modal 7B / laptop 1.5B / rules
+            r["answered_by"] = ft_src if mode == b["label"] else "rules"
+            if ft_route and ft_remote_err: r["remote_fallback"] = ft_remote_err
         r["mode"] = mode
         r["persona"] = persona
         return r
@@ -828,7 +836,8 @@ def brain(refresh=False):
     v = dict(kind="rules", label="Rules engine", route=None, pref=pref)
     if pref == "finetuned":                       # opt-in only, never picked by auto
         if FT.ready():
-            v = dict(kind="finetuned", label=f"Fine-tuned model ({FT.ft_model()})", route=None, pref=pref)
+            name = FT.ft_model() if not FT.remote_url() else f"{FT.remote_label()}, fallback {FT.local_label()}" if FT.local_fallback_on() else FT.remote_label()
+            v = dict(kind="finetuned", label=f"Fine-tuned model ({name})", route=None, pref=pref)
     elif pref in ("auto", "ollama") and _ollama_ready():
         v = dict(kind="ollama", label=f"Open model ({ollama_model()} via Ollama)", route=ollama_route, pref=pref)
     elif pref in ("auto", "openai") and llm_enabled():
@@ -839,7 +848,9 @@ def brain(refresh=False):
 
 def brain_info():
     b = brain()
-    return dict(kind=b["kind"], label=b["label"], ollama_host=ollama_host(), ollama_model=FT.ft_model() if b["kind"] == "finetuned" else ollama_model())
+    out = dict(kind=b["kind"], label=b["label"], ollama_host=ollama_host(), ollama_model=FT.ft_model() if b["kind"] == "finetuned" else ollama_model())
+    if b["kind"] == "finetuned" or os.environ.get("NP_BRAIN", "").lower() == "finetuned": out["ft_chain"] = FT.chain_info()
+    return out
 
 
 def llm_route(q, intents):

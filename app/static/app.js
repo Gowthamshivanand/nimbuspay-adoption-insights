@@ -51,7 +51,13 @@ async cost() {
   document.querySelectorAll("#view input, #view select").forEach(el => el.oninput = run); run();
 },
 async models() {
-  $("#view").innerHTML = `<h1>Model comparison</h1><p class="muted">The same agent test (21 golden questions, guard probes and 64 unscripted probes) per brain, measured on this machine. A brain that is not reachable shows <b>not available</b>: no numbers are estimated.</p><div id="mdl" class="muted">Loading...</div>`;
+  $("#view").innerHTML = `<h1>Model comparison</h1><p class="muted">The same agent test (21 golden questions, guard probes and 64 unscripted probes) per brain, measured on this machine. A brain that is not reachable shows <b>not available</b>: no numbers are estimated.</p><div id="ftchain"></div><div id="mdl" class="muted">Loading...</div>`;
+  api("/api/brain").then(b => { const c = b.ft_chain; if (!c || !$("#ftchain")) return; const rm = c.remote;
+    $("#ftchain").className = "card"; $("#ftchain").innerHTML = `<h2>Fine-tuned brain: who answers</h2><p>Order: <b data-testid="ft-order">${c.order.map(esc).join(" &gt; ")}</b>. Safety guards always run first in code.</p>
+    <table data-testid="ft-chain"><tr><th>Step</th><th>Model</th><th>Status</th><th>Answered (this server)</th></tr>
+    ${rm.configured ? `<tr><td>${esc(rm.label)} (remote)</td><td>${esc(rm.model)} at ${esc(rm.host)}</td><td>${rm.cooling_down ? "skipped for a few seconds after a failure" : "on"}${rm.last_error ? " | last error: " + esc(rm.last_error) : ""}</td><td>${c.answered[rm.label] || 0}</td></tr>` : ""}
+    ${c.local.fallback ? `<tr><td>${esc(c.local.label)} (local Ollama)</td><td>${esc(c.local.model)}</td><td>${c.local.ready ? "loaded" : "not loaded"}</td><td>${c.answered[c.local.label] || 0}</td></tr>` : ""}
+    <tr><td>rules</td><td>deterministic rules engine</td><td>always on</td><td>fallback</td></tr></table>`; }).catch(() => {});
   const M = await api("/api/models"), H = M.metrics_help;
   const sc = x => x ? `${x.passed}/${x.total}` : "-", ms = v => v === null || v === undefined ? "-" : v + " ms";
   const row = (name, st, r, extra) => r ? `<tr data-testid="mrow-${esc(st)}"><td><b>${esc(name)}</b><div class="muted" style="font-size:12px">${esc(extra)}</div></td><td>${sc(r.golden)}</td><td>${sc(r.panel24)}</td><td>${sc(r.extra)}</td><td class="${r.unsafe_answers ? "red" : "ok"}">${r.unsafe_answers} / ${r.should_refuse}</td><td>${r.faithfulness_pct ?? "-"}%</td><td>${ms(r.latency_ms.p50)}</td><td>${ms(r.latency_ms.p95)}</td><td>${r.gate_pass ? '<span class="ok">pass</span>' : '<span class="red">fail</span>'}</td></tr>`
@@ -153,7 +159,7 @@ agent() {
   $("#askf").onsubmit = e => { e.preventDefault(); const q = $("#askq").value.trim(); if (q) { ask(q); $("#askq").value = ""; } };
   $("#chat").onclick = chatClick;
   drawChat();
-  api("/api/brain").then(b => { $("#brain").textContent = b.kind === "ollama" ? "Open model: " + b.ollama_model + " (local, Ollama)" : b.kind === "openai" ? b.label : "Rules engine (open model not detected at " + b.ollama_host + ")"; });
+  api("/api/brain").then(b => { $("#brain").textContent = b.kind === "ollama" ? "Open model: " + b.ollama_model + " (local, Ollama)" : (b.kind === "openai" || b.kind === "finetuned") ? b.label + (b.ft_chain ? " | order: " + b.ft_chain.order.join(" > ") : "") : "Rules engine (open model not detected at " + b.ollama_host + ")"; });
 },
 async alerts() {
   $("#view").innerHTML = `<h1>Alerts</h1><p class="muted">Rule-based alerts from the governed metrics for ${esc(ST.dataset_label)}.</p><table data-testid="alerts"><tr><th>Severity</th><th>Metric</th><th>Alert</th></tr>${ST.alerts.map(a => `<tr><td class="sev-${a.severity}">${a.severity}</td><td>${a.metric}</td><td>${esc(a.text)}</td></tr>`).join("") || "<tr><td colspan=3>No alerts</td></tr>"}</table>`;
@@ -221,7 +227,7 @@ const TYPE = {refuse: "Refused", caveat: "Answer with caveat", clarify: "Clarify
 function drawChat() {
   const c = $("#chat"); if (!c) return;
   c.innerHTML = CHAT.map((m, i) => m.me ? `<div class="msg me">${m.as ? `<span class="muted" style="color:#ccc;font-size:11px">asked as ${esc(m.as)}: </span>` : ""}${esc(m.me)}</div>` : (b => `<div class="msg bot ${b.type}" data-testid="${m.streaming ? "streaming" : "answer"}">
-   <span class="tag">${TYPE[b.type] || b.type}</span><span class="tag b-${esc(b.brain || "rules")}" data-testid="brain-tag">${esc(BRAIN[b.brain] || b.brain || "...")}</span><span class="tag">${esc(b.mode)}</span>${b.latency_ms !== undefined ? `<span class="tag lat" data-testid="latency">${b.latency_ms} ms</span>` : ""}${typeof b.confidence === "number" ? `<span class="tag lat" data-testid="confidence" title="${esc(b.confidence_basis || "")}">confidence ${Math.round(b.confidence * 100)}%</span>` : ""}
+   <span class="tag">${TYPE[b.type] || b.type}</span><span class="tag b-${esc(b.brain || "rules")}" data-testid="brain-tag">${esc(BRAIN[b.brain] || b.brain || "...")}</span><span class="tag">${esc(b.mode)}</span>${b.answered_by ? `<span class="tag b-src" data-testid="answered-by" title="${esc(b.remote_fallback || "")}">answered by ${esc(b.answered_by)}</span>` : ""}${b.latency_ms !== undefined ? `<span class="tag lat" data-testid="latency">${b.latency_ms} ms</span>` : ""}${typeof b.confidence === "number" ? `<span class="tag lat" data-testid="confidence" title="${esc(b.confidence_basis || "")}">confidence ${Math.round(b.confidence * 100)}%</span>` : ""}
    ${b.followup ? `<div class="fu" data-testid="followup">Follow-up, read as: "${esc(b.followup.interpreted_as)}"</div>` : ""}
    <div ${m.streaming ? 'id="stream-text" class="cursor"' : ""}>${esc(b.text)}</div>
    ${b.safe_alternative ? `<div style="margin-top:6px"><b>Safe alternative:</b> ${esc(b.safe_alternative)}</div>` : ""}
@@ -242,7 +248,7 @@ async function whyPanel(m) {
   let w = $("#why"); if (!w) { w = document.createElement("div"); w.id = "why"; document.body.appendChild(w); }
   w.innerHTML = `<div class="modal" onclick="if(event.target===this)this.parentNode.remove()"><div class="card why" style="max-width:820px;width:94%;max-height:86vh;overflow:auto" data-testid="why-panel">
    <h2 style="margin-top:0">Why this number?</h2><p class="muted">${esc(m.q)}</p>
-   <table><tr><th>Answered by</th><td>${esc(BRAIN[b.brain] || b.brain)} (${esc(b.mode)}), ${b.latency_ms} ms${typeof b.confidence === "number" ? `, confidence ${Math.round(b.confidence * 100)}% (${esc(b.confidence_basis)})` : ""}</td></tr>
+   <table><tr><th>Answered by</th><td>${b.answered_by ? `<b>${esc(b.answered_by)}</b>${b.remote_fallback ? " (" + esc(b.remote_fallback) + ")" : ""}, ` : ""}${esc(BRAIN[b.brain] || b.brain)} (${esc(b.mode)}), ${b.latency_ms} ms${typeof b.confidence === "number" ? `, confidence ${Math.round(b.confidence * 100)}% (${esc(b.confidence_basis)})` : ""}</td></tr>
    <tr><th>Role</th><td>${esc(b.persona)} (scope enforced on the server)</td></tr><tr><th>Data as of</th><td data-testid="why-asof">${esc(b.data_as_of)}</td></tr>
    <tr><th>Rows returned</th><td data-testid="why-rows">${b.sql_executed ? b.row_count : b.sql ? "Figure from the governed pipeline; SQL below is the equivalent query, not re-run for this answer" : "No SQL: figure from the governed pipeline or an agreed input"}</td></tr></table>
    <h2>Metric definitions</h2><table data-testid="why-defs"><tr><th>ID and version</th><th>Metric</th><th>Definition</th><th>Owner</th></tr>${defs}</table>

@@ -76,9 +76,14 @@ The failures were questions the rules engine handles on purpose: claims with no 
 | `FT_RULES_MIN_CONF` | `0.65` | Rules confidence needed to skip the model |
 | `FT_ANSWER` | `0` | `1` = the model also writes the answer text (number-checked); off for the demo because it was most of the p95 |
 | `FT_TIMEOUT_S` | `4` | Per model call; on timeout the rules answer is used |
-| `FT_JSON_SCHEMA` | `1` | Route call passes a JSON schema as Ollama `format` (governed tool enum, required args), so invalid JSON or unknown tools cannot be generated; `0` = plain `"json"` |
+| `FT_JSON_SCHEMA` | `0` | `0` (default) = Ollama `format: "json"`: always valid JSON, and `parse_route` rejects unknown tools / args (rules fallback). `1` = pass the JSON schema; **off by default because Ollama re-orders the schema keys alphabetically and forces `"args"` before `"tool"`**, which the model was never trained on (see `modal/README.md`) |
+| `FT_ANSWER_TIMEOUT_S` | `10` | Per answer call (about 200 tokens); the route call keeps `FT_TIMEOUT_S` |
+| `FT_REMOTE_URL` / `FT_REMOTE_KEY` | unset | Remote Ollama-compatible endpoint (the Modal 7B) tried first, then the local model, then rules; see `modal/README.md` |
 | `FT_KEEP_ALIVE` | `30m` | Sent to Ollama so the model stays loaded between questions |
 | `FT_WARMUP` | `1` | With `NP_BRAIN=finetuned` the server loads the model in the background at startup (`0` to skip) |
+
+## Modal (full runs, 7B, serving)
+See [`modal/README.md`](modal/README.md): full 1.5B run 3 and the 7B on Modal GPUs. Every exported GGUF is evaluated in Ollama there, and the release decision uses the GGUF numbers.
 
 ## Steps for Mohith
 1. Open the notebook with the **Open in Colab** badge above.
@@ -104,7 +109,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt pytest httpx
 $env:PYTHONUTF8 = "1"
-python -m pytest -q tests/test_pipeline.py tests/test_agent.py tests/test_probes.py tests/test_persona.py tests/test_api.py tests/test_features.py tests/test_brain.py tests/test_cost.py tests/test_improvements.py tests/test_break_it.py tests/test_space.py tests/test_finetuned.py
+python -m pytest -q tests/test_pipeline.py tests/test_agent.py tests/test_probes.py tests/test_persona.py tests/test_api.py tests/test_features.py tests/test_brain.py tests/test_cost.py tests/test_improvements.py tests/test_break_it.py tests/test_space.py tests/test_finetuned.py tests/test_remote_brain.py
 ollama list
 $env:OLLAMA_HOST = "http://127.0.0.1:11434"
 $env:FT_MODEL = "gowtham-nimbuspay-agent"

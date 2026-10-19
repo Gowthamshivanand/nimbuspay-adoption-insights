@@ -320,7 +320,7 @@ def test_ollama_transport(monkeypatch, base):
         r = A.Agent(*base).ask("which bots are flakiest", "platform_engineer")     # rules miss it -> hybrid asks the model
         assert r["intent"] == "reliability" and r["ft_route"] == "reliability" and "answer_by" not in r   # FT_ANSWER defaults to 0
         b0 = FakeOllama.bodies[0]
-        assert isinstance(b0["format"], dict) and "anyOf" in b0["format"]                     # FT_JSON_SCHEMA default on
+        assert b0["format"] == "json" and b0["options"]["repeat_penalty"] == 1.0              # FT_JSON_SCHEMA default off (key order)
         assert b0["model"] == "gowtham-nimbuspay-agent" and b0["options"]["temperature"] == 0 and b0["keep_alive"] == "30m" and len(FakeOllama.bodies) == 1
         monkeypatch.setenv("FT_ANSWER", "1")
         r = A.Agent(*base).ask("which bots are flakiest", "platform_engineer")
@@ -466,7 +466,7 @@ def test_models_tab_sees_the_finetuned_brain(monkeypatch):
         FT.FT_GENERATE = None; monkeypatch.setenv("NP_BRAIN", "rules"); A.brain(refresh=True)
 
 
-# ---------- structured outputs: Ollama `format` = JSON schema (FT_JSON_SCHEMA, default on) ----------
+# ---------- structured outputs: Ollama `format` = "json" by default, JSON schema with FT_JSON_SCHEMA=1 ----------
 def _variants(schema):
     return {v["properties"]["tool"]["enum"][0]: v for v in schema["anyOf"]}
 
@@ -499,8 +499,8 @@ def _capture_ollama(monkeypatch, reply):
     return sent
 
 
-def test_route_call_passes_json_schema_by_default(monkeypatch):
-    monkeypatch.delenv("FT_JSON_SCHEMA", raising=False)
+def test_route_call_passes_json_schema_when_switched_on(monkeypatch):
+    monkeypatch.setenv("FT_JSON_SCHEMA", "1")
     sent = _capture_ollama(monkeypatch, '{"tool": "m01", "args": {}}')
     assert FT.route("What is licence utilisation?", "executive", None, AG, RG) == {"tool": "m01", "args": {}}
     fmt = sent["body"]["format"]
@@ -508,8 +508,8 @@ def test_route_call_passes_json_schema_by_default(monkeypatch):
     assert _variants(fmt)["agent_value"]["properties"]["args"]["properties"]["agent"]["enum"] == sorted(AG)
 
 
-def test_json_schema_switch_off_uses_plain_json(monkeypatch):
-    monkeypatch.setenv("FT_JSON_SCHEMA", "0")
+def test_json_schema_default_off_uses_plain_json(monkeypatch):
+    monkeypatch.delenv("FT_JSON_SCHEMA", raising=False)
     sent = _capture_ollama(monkeypatch, '{"tool": "m01", "args": {}}')
     FT.route("What is licence utilisation?", "executive", None, AG, RG)
     assert sent["body"]["format"] == "json"
@@ -521,9 +521,13 @@ def test_answer_call_has_no_format(monkeypatch):
     assert "format" not in sent["body"]
 
 
-def test_eval_generate_route_uses_schema(monkeypatch):
+def test_eval_generate_route_uses_the_app_format(monkeypatch):
     sent = _capture_ollama(monkeypatch, '{"tool": "none", "args": {}}')
+    monkeypatch.delenv("FT_JSON_SCHEMA", raising=False)
     FT.generate(FT.route_messages("hi", "executive"), "route")      # the call finetune/eval_finetuned.py makes
+    assert sent["body"]["format"] == "json"
+    monkeypatch.setenv("FT_JSON_SCHEMA", "1")
+    FT.generate(FT.route_messages("hi", "executive"), "route")
     assert "anyOf" in sent["body"]["format"]
 
 

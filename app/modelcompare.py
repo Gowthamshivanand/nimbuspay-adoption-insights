@@ -20,6 +20,8 @@ def available(key):
     if key == "finetuned":
         try:
             from . import finetuned as FT
+            if FT.remote_url():                            # remote endpoint first, then the laptop model, then rules
+                return True, f"{FT.remote_label()} ({FT.remote_model()}) at {FT.chain_info()['remote']['host']}" + (f", fallback {FT.ft_model()} via Ollama" if FT.local_fallback_on() else "")
             return (True, f"{FT.ft_model()} via Ollama") if FT.ready() else (False, f"fine-tuned model {FT.ft_model()} not loaded in Ollama")
         except Exception:
             return False, "fine-tuned brain not installed in this build"

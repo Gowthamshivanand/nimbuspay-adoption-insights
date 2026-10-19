@@ -131,7 +131,8 @@ def _answer(body):
     r = CV.respond(S.agent, q, persona, body.session_id, previous=prev)   # guards + role check run on every turn inside
     logged = persona if persona == body.persona else f"{persona} (requested: {body.persona or 'none'})"
     S.audit.execute("INSERT INTO audit VALUES(?,?,?,?,?,?,?,?)", (dt.datetime.now().isoformat(timespec="seconds"), S.key, logged, q,
-                    r["type"], r["intent"], ",".join(c["metric"] for c in r["citations"]), r["mode"]))
+                    r["type"], r["intent"], ",".join(c["metric"] for c in r["citations"]),
+                    r["mode"] + (f" [{r['answered_by']}]" if r.get("answered_by") else "")))
     S.audit.commit()
     return r
 
@@ -150,7 +151,7 @@ def ask_stream(body: Ask):
     with the full response. The answer is computed in full first (numbers from governed SQL), then streamed."""
     r = _answer(body)
     def gen():
-        meta = {k: r.get(k) for k in ("type", "intent", "mode", "brain", "confidence", "confidence_basis", "latency_ms", "persona", "followup", "session_id")}
+        meta = {k: r.get(k) for k in ("type", "intent", "mode", "brain", "answered_by", "confidence", "confidence_basis", "latency_ms", "persona", "followup", "session_id")}
         yield f"event: meta\ndata: {json.dumps(meta)}\n\n"
         for tok in re.findall(r"\S+\s*", r["text"]):
             yield f"event: token\ndata: {json.dumps(tok)}\n\n"

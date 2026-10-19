@@ -4,6 +4,8 @@
   python finetune/eval_finetuned.py --mode hybrid --skip-model-metrics   # quick: end-to-end gate + latency only
   python finetune/eval_finetuned.py --limit 100      # quicker model metrics
   FT_MODEL=my-name / OLLAMA_HOST=http://127.0.0.1:11434 / FT_TIMEOUT_S=4 are read from the environment.
+  Remote model (e.g. the Modal 7B): FT_REMOTE_URL + FT_REMOTE_KEY, and FT_FALLBACK_LOCAL=0 so every call is the remote model
+  (otherwise a failed remote call silently falls back to the laptop model); the report counts who answered.
 Modes: hybrid (default for NP_BRAIN=finetuned: guards, then a confident rules match, the model only for the rest) and pure
 (guards, then the model for everything, for comparison). The model is warmed up before anything is timed.
 Release gate (exit code 0 only if all hold), end to end through the Agent with the code guards in front:
@@ -100,6 +102,8 @@ def main():
     ap.add_argument("--limit", type=int, default=0); ap.add_argument("--skip-model-metrics", action="store_true")
     ap.add_argument("--out", default=os.path.join(HERE, "eval_report.json"))
     ap.add_argument("--mode", choices=["hybrid", "pure", "both"], default="both")
+    ap.add_argument("--workers", type=int, default=1, help="parallel model calls for the model metrics (GPU servers; keep 1 on a laptop)")
+    ap.add_argument("--save-preds", default="", help="write the raw model outputs for test.jsonl rows to this JSON file")
     a = ap.parse_args()
     try: sys.stdout.reconfigure(errors="replace")      # Windows PowerShell 5.1 consoles are not UTF-8
     except Exception: pass
@@ -107,22 +111,31 @@ def main():
     import ft_eval as E
     if not FT.ready():
         print(f"Fine-tuned model '{FT.ft_model()}' is not available in Ollama ({os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')}). "
-              "Run: ollama create gowtham-nimbuspay-agent -f Modelfile"); sys.exit(2)
-    w = FT.warmup()
+              "Run: ollama create gowtham-nimbuspay-agent -f Modelfile (or set FT_REMOTE_URL for a remote endpoint)"); sys.exit(2)
+    w = FT.warmup(timeout=600 if FT.remote_url() else 120)       # a cold Modal container can take minutes
     print(f"Warm-up (model load) took {w} s" if w is not None else "Warm-up call failed; timings may include the model load", flush=True)
     report = {"warmup_s": w}
     if not a.skip_model_metrics:
         recs = [json.loads(l) for l in open(a.test, encoding="utf-8")]
         if a.limit: recs = recs[:a.limit]
-        preds, lat = [], {"route": [], "answer": []}
-        for i, r in enumerate(recs):
-            t = time.perf_counter()
-            try: preds.append(FT.generate(r["messages"][:-1], r["task"]))
-            except Exception as e: preds.append(f"<error {e}>")
+        preds, lat = [None] * len(recs), {"route": [], "answer": []}
+        def one(i):
+            r = recs[i]; t = time.perf_counter()
+            try: preds[i] = FT.generate(r["messages"][:-1], r["task"])
+            except Exception as e: preds[i] = f"<error {e}>"
             lat[r["task"]].append(time.perf_counter() - t)
             if i % 50 == 0: print(f"  {i}/{len(recs)}", flush=True)
+        if a.workers > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(a.workers) as ex: list(ex.map(one, range(len(recs))))
+        else:
+            for i in range(len(recs)): one(i)
+        if a.save_preds:
+            with open(a.save_preds, "w", encoding="utf-8") as f: json.dump(preds, f)
+        report["model_errors"] = sum(1 for p in preds if str(p).startswith("<error"))
         report["model"] = E.score(recs, preds); report["rules_on_same_route_rows"] = E.rules_baseline(recs)
         report["model_latency_ms"] = {k: dict(p50=_pct(v, 0.5), p95=_pct(v, 0.95)) for k, v in lat.items() if v}
+        report["model_workers"] = a.workers
         E.print_report(report["model"], title="Fine-tuned model alone (pure)")
         report["fresh_wording"] = E.fresh_summary(recs, preds); E.print_fresh(report["fresh_wording"])
         report["hybrid_route"] = E.score(recs, E.hybrid_preds(recs, preds))["route"]
@@ -141,6 +154,10 @@ def main():
     if report.get("fresh_wording"): print(); E.print_fresh(report["fresh_wording"])
     ok = report[modes[0]]["gate_pass"]
     report["gate_pass"] = ok
+    report["answered_by_counts"] = dict(FT.SOURCE_COUNTS)
+    print("Model calls answered by:", report["answered_by_counts"] or "(none)")
+    if FT.remote_url() and FT.local_fallback_on() and any(k != FT.remote_label() for k in FT.SOURCE_COUNTS):
+        print("WARNING: some calls fell back to the laptop model; for a clean remote eval set FT_FALLBACK_LOCAL=0")
     os.environ["FT_MODE"] = "hybrid"
     with open(a.out, "w", encoding="utf-8") as f: json.dump(report, f, indent=1)
     print("Report:", a.out, "| exit code follows the", modes[0], "gate")

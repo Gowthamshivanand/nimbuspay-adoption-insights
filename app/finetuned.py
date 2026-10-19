@@ -105,9 +105,12 @@ REQUIRED_ARGS = {"outcome": {"metric"}, "refuse": {"reason"}}   # a route withou
 
 
 def json_schema_on():
-    """FT_JSON_SCHEMA=1 (default): the route call passes a JSON schema as Ollama `format`, so the decoder can only emit
-    a valid {"tool", "args"} object with a governed tool name. 0 = plain format "json" (the v1 behaviour)."""
-    return os.environ.get("FT_JSON_SCHEMA", "1").strip().lower() not in ("0", "false", "no", "off")
+    """FT_JSON_SCHEMA=1: the route call passes a JSON schema as Ollama `format` (tool enum, required args).
+    Default 0 = plain format "json": the output is still always valid JSON, and parse_route() rejects unknown tools or args
+    (rules fallback). Why off by default: Ollama re-orders the schema's properties alphabetically, so the constrained decoder
+    forces {"args": ..., "tool": ...} while the model was trained to write "tool" first. Measured on the exported smoke model
+    (finetune/modal/README.md): schema mode agreed with the HF model's routes on 0/40 rows, plain "json" on 9/40."""
+    return os.environ.get("FT_JSON_SCHEMA", "0").strip().lower() not in ("0", "false", "no", "off", "")
 
 
 def route_schema(agents=None):
@@ -129,44 +132,143 @@ def route_schema(agents=None):
 
 
 # ---------- model I/O ----------
-def _ollama_chat(messages, kind, timeout=None, schema=None):
-    from .agent import _http_json, ollama_host
-    h = ollama_host(); h = h if h.startswith("http") else "http://" + h
-    body = {"model": ft_model(), "stream": False, "messages": messages,
-            "options": {"temperature": 0, "num_predict": 96 if kind == "route" else 220}}
+# Brain chain (each step only if configured / reachable): remote endpoint (FT_REMOTE_URL, e.g. the Modal 7B) -> local Ollama
+# (FT_MODEL, the laptop 1.5B) -> the Agent's rules fallback. Nothing changes when FT_REMOTE_URL is not set.
+import threading
+_LOCAL = threading.local()                      # per request thread: which source answered the last model call
+_REMOTE_STATE = {"down_until": 0.0, "last_error": "", "ok": 0, "fail": 0}
+SOURCE_COUNTS = {}                              # source -> number of model calls it answered (shown in the Models tab)
+
+
+def remote_url():
+    return os.environ.get("FT_REMOTE_URL", "").strip().rstrip("/")
+
+
+def remote_model():
+    return os.environ.get("FT_REMOTE_MODEL", "gowtham-nimbuspay-agent-7b")
+
+
+def remote_label():
+    return os.environ.get("FT_REMOTE_LABEL", "Modal 7B")
+
+
+def local_label():
+    m = ft_model().lower()
+    return "laptop " + ("7B" if "7b" in m else "1.5B")
+
+
+def local_fallback_on():
+    """FT_FALLBACK_LOCAL=0 turns off the local Ollama step (e.g. to evaluate the remote model alone)."""
+    return os.environ.get("FT_FALLBACK_LOCAL", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _float_env(name, default):
+    try: return float(os.environ.get(name, default))
+    except ValueError: return float(default)
+
+
+def remote_timeout():
+    """Per remote call (FT_REMOTE_TIMEOUT_S, default 6: includes the internet round trip)."""
+    return _float_env("FT_REMOTE_TIMEOUT_S", "6")
+
+
+def last_source():
+    return getattr(_LOCAL, "source", None)
+
+
+def last_remote_error():
+    return getattr(_LOCAL, "remote_error", None)
+
+
+def _set_source(src):
+    _LOCAL.source = src
+    if src: SOURCE_COUNTS[src] = SOURCE_COUNTS.get(src, 0) + 1
+
+
+def _chat_body(model, messages, kind, schema=None):
+    body = {"model": model, "stream": False, "messages": messages,      # greedy, no repeat penalty: same decoding as the HF eval
+            "options": {"temperature": 0, "repeat_penalty": 1.0, "num_predict": 96 if kind == "route" else 220}}
     if kind == "route":
         body["format"] = (schema or route_schema()) if json_schema_on() else "json"
     body["keep_alive"] = os.environ.get("FT_KEEP_ALIVE", "30m")       # keep the model loaded between questions
-    out = _http_json(h + "/api/chat", body, timeout=timeout or ft_timeout())
+    return body
+
+
+def _ollama_chat(messages, kind, timeout=None, schema=None):
+    from .agent import _http_json, ollama_host
+    h = ollama_host(); h = h if h.startswith("http") else "http://" + h
+    out = _http_json(h + "/api/chat", _chat_body(ft_model(), messages, kind, schema), timeout=timeout or _timeout_for(kind))
     return out["message"]["content"]
 
 
+def _remote_chat(messages, kind, timeout=None, schema=None):
+    """Ollama-compatible /api/chat on FT_REMOTE_URL with a bearer key (FT_REMOTE_KEY, never logged)."""
+    from .agent import _http_json
+    key = os.environ.get("FT_REMOTE_KEY", "")
+    out = _http_json(remote_url() + "/api/chat", _chat_body(remote_model(), messages, kind, schema),
+                     headers={"Authorization": "Bearer " + key} if key else None, timeout=timeout or _timeout_for(kind, remote=True))
+    return out["message"]["content"]
+
+
+def _remote_available():
+    return bool(remote_url()) and __import__("time").time() >= _REMOTE_STATE["down_until"]
+
+
 def ft_timeout():
-    """Per-call timeout in seconds (FT_TIMEOUT_S, default 4). On timeout the Agent falls back to the rules engine."""
+    """Per route call timeout in seconds (FT_TIMEOUT_S, default 4). On timeout the Agent falls back to the rules engine."""
     try: return float(os.environ.get("FT_TIMEOUT_S", "4"))
     except ValueError: return 4.0
 
 
+def answer_timeout():
+    """Per answer call (FT_ANSWER_TIMEOUT_S, default 10): an answer is ~200 tokens, a route ~20, so it gets its own limit.
+    On timeout the governed template answer is kept."""
+    return _float_env("FT_ANSWER_TIMEOUT_S", "10")
+
+
+def _timeout_for(kind, remote=False):
+    if remote: return max(remote_timeout(), answer_timeout()) if kind == "answer" else remote_timeout()
+    return answer_timeout() if kind == "answer" else ft_timeout()
+
+
 def warmup(timeout=120):
-    """Load the model into memory once (first call can take tens of seconds on a laptop). Returns seconds, or None on failure."""
+    """Load the model into memory once (first call can take tens of seconds on a laptop; a cold Modal container longer).
+    Returns seconds, or None on failure."""
     import time
     t = time.time()
     try:
-        (FT_GENERATE or _ollama_chat)(route_messages("What is licence utilisation this month?", "executive"), "route",
-                                      **({} if FT_GENERATE else {"timeout": timeout}))
+        msgs = route_messages("What is licence utilisation this month?", "executive")
+        if FT_GENERATE: FT_GENERATE(msgs, "route")
+        else: generate(msgs, "route", timeout=timeout)
         return round(time.time() - t, 2)
     except Exception:
         return None
 
 
-def generate(messages, kind, schema=None):
-    """One model call. Route calls carry the JSON schema (FT_JSON_SCHEMA); eval_finetuned.py uses this same function."""
-    if FT_GENERATE: return FT_GENERATE(messages, kind)
-    return _ollama_chat(messages, kind, schema=schema)
+def generate(messages, kind, schema=None, timeout=None):
+    """One model call through the chain: FT_GENERATE (notebook / tests) > remote (FT_REMOTE_URL) > local Ollama (FT_MODEL).
+    Raises if every configured step fails (the Agent then uses the rules engine). eval_finetuned.py uses this same function.
+    After a remote failure the remote is skipped for FT_REMOTE_COOLDOWN_S (default 30 s) so a dead endpoint costs one timeout."""
+    import time
+    _LOCAL.source = None; _LOCAL.remote_error = None
+    if FT_GENERATE:
+        out = FT_GENERATE(messages, kind); _set_source(os.environ.get("FT_GENERATE_LABEL") or None); return out
+    err = None
+    if _remote_available():
+        try:
+            out = _remote_chat(messages, kind, timeout=timeout, schema=schema)
+            _REMOTE_STATE["ok"] += 1; _set_source(remote_label()); return out
+        except Exception as e:
+            err = e; _REMOTE_STATE["fail"] += 1; _REMOTE_STATE["last_error"] = type(e).__name__ + ": " + str(e)[:120]
+            _LOCAL.remote_error = remote_label() + " failed (" + type(e).__name__ + ")"
+            _REMOTE_STATE["down_until"] = time.time() + _float_env("FT_REMOTE_COOLDOWN_S", "30")
+    if remote_url() and not local_fallback_on():
+        raise err or RuntimeError("remote endpoint cooling down after a failure")
+    out = _ollama_chat(messages, kind, timeout=timeout, schema=schema)
+    _set_source(local_label()); return out
 
 
-def ready():
-    if FT_GENERATE: return True
+def _local_ready():
     from .agent import _http_json, ollama_host
     try:
         h = ollama_host(); h = h if h.startswith("http") else "http://" + h
@@ -175,6 +277,26 @@ def ready():
         return ft_model() in names or ft_model() + ":latest" in names
     except Exception:
         return False
+
+
+def ready():
+    """True if some model step can answer: FT_GENERATE, a configured remote endpoint (checked per call, with fallback),
+    or the local Ollama model."""
+    if FT_GENERATE: return True
+    if remote_url(): return True
+    return _local_ready()
+
+
+def chain_info():
+    """For /api/brain and the Models tab. Never includes the key."""
+    from urllib.parse import urlparse
+    import time
+    r = remote_url()
+    return dict(remote=dict(configured=bool(r), host=urlparse(r).netloc if r else None, model=remote_model() if r else None,
+                            label=remote_label() if r else None, calls_ok=_REMOTE_STATE["ok"], calls_failed=_REMOTE_STATE["fail"],
+                            cooling_down=bool(r) and time.time() < _REMOTE_STATE["down_until"], last_error=_REMOTE_STATE["last_error"] or None),
+                local=dict(model=ft_model(), label=local_label(), fallback=local_fallback_on() or not r, ready=_local_ready()),
+                answered=dict(SOURCE_COUNTS), order=([remote_label()] if r else []) + ([local_label()] if (local_fallback_on() or not r) else []) + ["rules"])
 
 
 def parse_route(text, agents, regions):
@@ -205,6 +327,7 @@ def route(q, role, prev, agents, regions):
     try:
         return parse_route(generate(route_messages(q, role, prev), "route", schema=route_schema(agents)), agents, regions)
     except Exception:
+        _LOCAL.source = None
         return None
 
 
