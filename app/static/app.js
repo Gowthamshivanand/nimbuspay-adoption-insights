@@ -174,7 +174,7 @@ pack() {
 },
 async audit() {
   const A = await api("/api/audit");
-  $("#view").innerHTML = `<h1>Audit log</h1><p class="muted">Every agent question is logged: time, dataset, persona, outcome, metrics cited, mode.</p><table data-testid="audit"><tr><th>Time</th><th>Dataset</th><th>Persona</th><th>Question</th><th>Result</th><th>Metrics</th><th>Mode</th></tr>${A.map(a => `<tr><td>${a.ts}</td><td>${a.dataset}</td><td>${a.persona}</td><td>${esc(a.question)}</td><td>${a.type}</td><td>${a.metrics}</td><td>${a.mode}</td></tr>`).join("") || "<tr><td colspan=7>No questions yet</td></tr>"}</table>`;
+  $("#view").innerHTML = `<h1>Audit log</h1><p class="muted">Every agent question is logged: time, dataset, persona, outcome, metrics cited, mode.</p><table data-testid="audit"><tr><th>Time</th><th>Dataset</th><th>Persona</th><th>Question</th><th>Result</th><th>Metrics</th><th>Mode</th></tr>${A.map(a => `<tr><td>${esc(a.ts)}</td><td>${esc(a.dataset)}</td><td>${esc(a.persona)}</td><td>${esc(a.question)}</td><td>${esc(a.type)}</td><td>${esc(a.metrics)}</td><td>${esc(a.mode)}</td></tr>`).join("") || "<tr><td colspan=7>No questions yet</td></tr>"}</table>`;
 }};
 
 function pipelineSummary() {
@@ -207,7 +207,11 @@ async function ask(q, persona) {
     if (!done) throw new Error("stream ended early");
     m.bot = done;
   } catch (e) {                                   // graceful fallback: the plain endpoint
-    m.bot = await api("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"}, body});
+    try { m.bot = await api("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"}, body}); }
+    catch (e2) {                                  // never leave a frozen bubble: say what happened, show no number
+      m.bot = {type: "caveat", intent: "error", error: true, mode: "error", brain: "rules", citations: [], data_as_of: ST.data_as_of,
+               text: "The service didn't answer (" + (e2.message || "network error") + "), so there is no answer and no number to show. Please ask again; if it repeats, restart the app."};
+    }
   }
   m.streaming = false; drawChat();
 }
@@ -227,7 +231,7 @@ const TYPE = {refuse: "Refused", caveat: "Answer with caveat", clarify: "Clarify
 function drawChat() {
   const c = $("#chat"); if (!c) return;
   c.innerHTML = CHAT.map((m, i) => m.me ? `<div class="msg me">${m.as ? `<span class="muted" style="color:#ccc;font-size:11px">asked as ${esc(m.as)}: </span>` : ""}${esc(m.me)}</div>` : (b => `<div class="msg bot ${b.type}" data-testid="${m.streaming ? "streaming" : "answer"}">
-   <span class="tag">${TYPE[b.type] || b.type}</span><span class="tag b-${esc(b.brain || "rules")}" data-testid="brain-tag">${esc(BRAIN[b.brain] || b.brain || "...")}</span><span class="tag">${esc(b.mode)}</span>${b.answered_by ? `<span class="tag b-src" data-testid="answered-by" title="${esc(b.remote_fallback || "")}">answered by ${esc(b.answered_by)}</span>` : ""}${b.latency_ms !== undefined ? `<span class="tag lat" data-testid="latency">${b.latency_ms} ms</span>` : ""}${typeof b.confidence === "number" ? `<span class="tag lat" data-testid="confidence" title="${esc(b.confidence_basis || "")}">confidence ${Math.round(b.confidence * 100)}%</span>` : ""}
+   <span class="tag">${esc(TYPE[b.type] || b.type)}</span><span class="tag b-${esc(b.brain || "rules")}" data-testid="brain-tag">${esc(BRAIN[b.brain] || b.brain || "...")}</span><span class="tag">${esc(b.mode)}</span>${b.answered_by ? `<span class="tag b-src" data-testid="answered-by" title="${esc(b.remote_fallback || "")}">answered by ${esc(b.answered_by)}</span>` : ""}${b.latency_ms !== undefined ? `<span class="tag lat" data-testid="latency">${b.latency_ms} ms</span>` : ""}${typeof b.confidence === "number" ? `<span class="tag lat" data-testid="confidence" title="${esc(b.confidence_basis || "")}">confidence ${Math.round(b.confidence * 100)}%</span>` : ""}
    ${b.followup ? `<div class="fu" data-testid="followup">Follow-up, read as: "${esc(b.followup.interpreted_as)}"</div>` : ""}
    <div ${m.streaming ? 'id="stream-text" class="cursor"' : ""}>${esc(b.text)}</div>
    ${b.safe_alternative ? `<div style="margin-top:6px"><b>Safe alternative:</b> ${esc(b.safe_alternative)}</div>` : ""}

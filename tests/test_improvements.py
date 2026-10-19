@@ -63,7 +63,8 @@ def test_guards_run_on_every_followup_turn():
 
 def test_no_session_means_no_context_and_ask_is_backward_compatible():
     ask(Q); r = c.post("/api/ask", json=dict(question="and Region B?", persona="executive")).json()
-    assert "followup" not in r and r["type"] == "refuse" and r["intent"] == "unmatched"
+    assert "followup" not in r and r["type"] == "clarify" and r["intent"] == "clarify_metric"   # no context: ask which metric, no number
+    assert "75.0%" not in r["text"] and "outside your access scope" not in r["text"]
     r = c.post("/api/ask", json=dict(question=Q, persona="executive")).json()
     assert r["type"] == "answer" and "69.6%" in r["text"] and "session_id" not in r
 

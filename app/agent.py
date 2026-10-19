@@ -42,7 +42,12 @@ INDIVIDUAL = (r"(which (analysts?|users?|people|persons?|employees?|staff|member
               r"|(top|bottom) \d* ?(users|analysts|people|employees|performers)|power users?|\blazy\b|slacker|underperform"
               r"|(per|by|each) (employee|analyst|person)\b|by user\b|each user\b"
               r"|which ([\w-]+ )?(analysts?|employees?|staff|people|persons?)\b|(?<!agent )\bnames?\b|seat holders?|\b(inactive|idle) (users|people|employees|analysts|staff)\b"
-              r"|\b(list|show|name|identify|find|flag)\b(?!.*\b(by|per|across|in each) (regions?|markets?|countr(y|ies)|teams?|cohorts?|weeks?|months?)\b).*\b(users|people|employees|analysts|staff|individuals)\b|(employee|analyst|person|user)[- ]level|\banalysts? (are|is)\b)")
+              r"|\b(list|show|name|identify|find|flag)\b(?!.*\b(by|per|across|in each) (regions?|markets?|countr(y|ies)|teams?|cohorts?|weeks?|months?)\b).*\b(users|people|employees|analysts|staff|individuals)\b|(employee|analyst|person|user)[- ]level|\banalysts? (are|is)\b"
+              # everyday wording (checked on all 11,500 labelled rows: 13 new hits, all individual/PII refusals, 0 false positives)
+              r"|\b(which|what|list|name|rank|top|bottom)\b[^?.!]*\b(folks|guys|colleagues|teammates|co-?workers)\b"
+              r"|\b(folks|guys|colleagues|teammates|co-?workers)\b[^?.!]*\b(least|most|never|rarely|inactive|idle|lazy|top|bottom|worst|best|slowest|fewest)\b"
+              r"|\bwho (on|in) (the |my |our )?(team\b|team-[a-z]\d)"
+              r"|\bwho\b[^?.!]*\b(hasn'?t|haven'?t|has not|have not|never|didn'?t|did not) (touched|used|opened|logged|tried)\b)")
 FORECAST = (r"(next (week|quarter|month|year)|\bwill\b.*\b(be|rise|grow|fall|drop|increase|decrease|reach|keep|hit|improve|look|need)\b"
             r"|forecast|predict|projection|going to (be|rise|grow|fall|drop|need)|expect(ed)? (to|next)|in (3|6|12|three|six|twelve) months)")
 CAUSAL = (r"(\bcause[ds]?\b|caused|because of the (agent|ai)|did the .* (make|lead to|drive)|impact of the agent on"
@@ -113,11 +118,27 @@ SUGGEST = [
 ]
 
 
+import logging
+LOG = logging.getLogger("nimbuspay.agent")
+
+
+def intent_of_tool(fn):
+    """Intent label a governed tool puts on its answers (same rule as conversation.intent_of)."""
+    if fn == "define_m01": return "define_M01"
+    if fn == "m02_regions": return "M02"
+    return fn.upper() if re.fullmatch(r"m\d\d", fn or "") else (fn or "unmatched")
+
+
 SQL_TRACE = __import__("threading").local()   # per-request row counts of SQL actually executed ("Why this number?")
 
 
+DB_LOCK = __import__("threading").RLock()   # the in-memory data set is ONE sqlite connection shared by the server's worker
+                                           # threads: concurrent execute/fetchall on it can return wrong or empty rows, so serialise
+
+
 def _sql(db, sql, args=()):
-    rows = db.execute(sql, args).fetchall()
+    with DB_LOCK:
+        rows = db.execute(sql, args).fetchall()
     tr = getattr(SQL_TRACE, "rows", None)
     if tr is not None: tr.append(len(rows))
     return rows
@@ -214,6 +235,13 @@ class Agent:
         regions = _scope(persona)
         return regions is not None and region not in [x.split(" (")[0] for x in regions]
 
+    def tool_error(self, fn, e):
+        """Safe reply when a governed tool raises (e.g. an uploaded CSV without the events it needs). No number, no guess."""
+        r = self._resp("caveat", "I couldn't compute that from this data set, so I won't guess. The data may be missing the events this metric needs; "
+                       "try another governed question or reload a built-in scenario.", intent=intent_of_tool(fn))
+        r["error"] = type(e).__name__
+        return r
+
     def no_role(self):
         return self.refuse("I can't show data: your role isn't recognised, so you get least-privilege access (deny by default). In production the role comes from your SSO token, never from the request.",
                            "Sign in with a recognised role (executive, regional lead, platform engineer, fraud operations lead, finance). Without one I can still explain definitions, e.g. 'How is licence utilisation defined?'", [], "no_role")
@@ -255,6 +283,8 @@ class Agent:
     def m11(self, q, persona):
         sql = "SELECT agent_id, COUNT(*) AS calls, SUM(status='failed') AS failed,\n  ROUND(100.0*SUM(status='failed')/COUNT(*),1) AS m11_pct\nFROM events_clean WHERE event_type = 'connector_call'\nGROUP BY agent_id ORDER BY m11_pct DESC;"
         rows = _sql(self.db, sql)
+        if not rows:                                     # e.g. an uploaded log with no connector calls: say so, never crash
+            return self._resp("caveat", "No connector calls are recorded in this data set, so I can't rank connector failures (M11).", ["M11"], sql, intent="M11")
         top = rows[0]
         return self._resp("answer", f"Highest connector failure rate: connector calls from {top[0]} at {top[3]}% ({top[2]}/{top[1]}). Overall M11 is {self.metrics['M11']['value']}%. (This synthetic log records the calling agent, not the connector name.)",
                           ["M11"], sql, intent="M11", rows=rows)
@@ -297,7 +327,10 @@ class Agent:
 
     def m10(self, q, persona):
         sql = "SELECT substr(event_time,1,10) AS day, COUNT(*) AS runs, SUM(status='failed') AS failed,\n  ROUND(100.0*SUM(status='failed')/COUNT(*),1) AS m10_pct\nFROM events_clean WHERE event_type = 'agent_run'\nGROUP BY day ORDER BY day DESC LIMIT 1;"
-        day, runs, failed, v = _sql(self.db, sql)[0]
+        rows = _sql(self.db, sql)
+        if not rows:                                     # e.g. an uploaded log with no agent runs
+            return self._resp("caveat", "No agent runs are recorded in this data set, so I can't give a latest-day error rate (M10).", ["M10"], sql, intent="M10")
+        day, runs, failed, v = rows[0]
         return self._resp("caveat", f"On the latest day with data ({day}) the agent error rate was {v}% ({failed}/{runs} runs). Caveat: data is as of {self.r['data_as_of']}, {self.r['quality']['late']} events arrived late this period and {self.r['quality']['after_close']} arrived after close, so the latest day can still change. Period M10 is {self.metrics['M10']['value']}%.",
                           ["M10", "M12"], sql, intent="M10")
 
@@ -568,6 +601,20 @@ class Agent:
         r["clarify"] = "topic"
         return r
 
+    def region_clarify(self, region):
+        """'and Region B?' with no previous question in the session: the region is clear, the metric is not. Ask, no data."""
+        from . import conversation as CV              # lazy: conversation imports this module
+        opts = [dict(label=f"Licence utilisation in {region}", q=f"What is licence utilisation in {region}?"),
+                dict(label="Habitual users by market", q=CV.CANON["m02_regions"])]
+        r = CV._clarify(self, f"{region} for which metric? I don't have a previous question to follow up on, so I won't guess.", opts, 0.4, "clarify_metric")
+        r["clarify"] = "metric"
+        return r
+
+    def _regions_untraced(self):
+        """Region list for routing checks: not counted in SQL_TRACE ('Why this number?' shows only the answer's own SQL)."""
+        with DB_LOCK:
+            return sorted({r[0] for r in self.db.execute("SELECT DISTINCT region FROM user_funnel").fetchall()})
+
     def regions(self):
         return sorted({r[0] for r in _sql(self.db, "SELECT DISTINCT region FROM user_funnel")})
 
@@ -588,6 +635,11 @@ class Agent:
             r = self.vague(q); r["mode"] = "rules (clarify)"; r["persona"] = persona
             if b["kind"] == "finetuned": r["answered_by"] = "rules"
             return r
+        frag = None if prev else region_fragment(q, self._regions_untraced)
+        if frag:                                         # 'and Region B?' with no previous question: ask which metric (every brain)
+            r = self.region_clarify(frag); r["persona"] = persona
+            if b["kind"] == "finetuned": r["answered_by"] = "rules"
+            return r
         use_model = b["kind"] == "finetuned"
         if use_model and ft_mode() == "hybrid":          # rules first, model second
             from . import conversation as CV             # lazy: conversation imports this module
@@ -598,9 +650,11 @@ class Agent:
             d = FT.route(q, persona, prev, self.agents, self.regions())   # schema-checked; None on any failure (incl. FT_TIMEOUT_S)
             ft_route = (d["tool"] if d else "invalid")
             ft_src, ft_remote_err = FT.last_source() or "fine-tuned model", FT.last_remote_error()   # Modal 7B / laptop 1.5B
-            if (d and d["tool"] not in ("refuse", "none") and ft_mode() == "hybrid" and not prev
-                    and not self.route(q) and not in_domain(q)):
+            if (d and d["tool"] not in ("refuse", "none") and ft_mode() == "hybrid" and not (prev and looks_followup(q))
+                    and not self.route(q) and not in_domain(q)):   # in a session too: only a follow-up-shaped question skips this
                 d, ft_note = {"tool": "none", "args": {}}, "off-domain model route ignored"   # e.g. a joke routed to a data tool
+            if d and d["tool"] == "refuse" and d["args"].get("reason") == "scope" and _scope(persona) is None and persona != LEAST_PRIVILEGE:
+                d, ft_note = None, "model scope refusal ignored (this role sees every region)"   # the server knows the scope
             if d and d["tool"] == "refuse":              # the model may refuse MORE than the guards, never less
                 r = self.refusal(d["args"]["reason"], persona); r["mode"] = b["label"] + " (refuse)"; r["persona"] = persona
                 r["ft_route"] = ft_route; r["answered_by"] = ft_src; return r
@@ -623,6 +677,8 @@ class Agent:
         if not fn:
             fn = self.route(q)                           # automatic fallback: deterministic router
             if b["kind"] != "rules" and mode == "rules": mode = "rules (fallback)"
+            if not fn and ft_route == "none" and ft_note == "model said none":
+                mode = b["label"] + " (no governed match)"   # the model was right to say none: not a model failure (P1-11)
         if fn and persona == LEAST_PRIVILEGE and fn not in PUBLIC_INTENTS:
             r = self.no_role()
         elif not fn:
@@ -633,9 +689,12 @@ class Agent:
             self._ctx.args = args
             try:
                 r = getattr(self, fn)(q, persona)        # numbers come from SQL / pipeline here, never from the model
+            except Exception as e:                       # a tool that fails on unusual data gives a safe reply, never a 500
+                LOG.exception("tool %s failed", fn)
+                r = self.tool_error(fn, e)
             finally:
                 self._ctx.args = None
-            if (b["kind"] == "finetuned" and mode == b["label"] and r["type"] in ("answer", "caveat") and not claims
+            if (b["kind"] == "finetuned" and mode == b["label"] and r["type"] in ("answer", "caveat") and not claims and not r.get("error")
                     and os.environ.get("FT_ANSWER", "0") == "1"):   # default off: model routes, the template writes the text
                 txt, why = FT.answer(q, persona, r)      # model writes the text; every number must be in the governed result
                 if txt:
@@ -647,7 +706,7 @@ class Agent:
         if ft_note and mode == "rules (fallback)": r["fallback_reason"] = ft_note
         if ft_route: r["ft_route"] = ft_route
         if b["kind"] == "finetuned":                     # which brain produced this route: Modal 7B / laptop 1.5B / rules
-            r["answered_by"] = ft_src if mode == b["label"] else "rules"
+            r["answered_by"] = ft_src if mode in (b["label"], b["label"] + " (no governed match)") else "rules"
             if ft_route and ft_remote_err: r["remote_fallback"] = ft_remote_err
         r["mode"] = mode
         r["persona"] = persona
@@ -712,6 +771,29 @@ def _suggest_vocab():
         for s_, kw in SUGGEST: v |= {_stem(w) for w in re.findall(r"[a-z0-9]+", (s_ + " " + kw).lower()) if len(w) > 3 and w not in STOP}
         _SUGGEST_VOCAB.append(v)
     return _SUGGEST_VOCAB[0]
+
+
+FOLLOWUP_SHAPE = (r"^\W*(and|also|plus|then|now|ok(ay)?|what about|how about|same (for|but)|and what about|and how about)\b"
+                  r"|\b(and|also|plus|same|saame|sme|instead)\s+(in|for|by|on|at|with|the|what|how|about|region|team)\b"
+                  r"|\b(it|its|that|this|those|these|them|they|same|again|instead|one|ones|why|how come|more|else|other|previous|last)\b")
+
+
+def region_fragment(q, regions):
+    """'and Region B?', 'what about region b', 'Region B?': only a region, no metric. Returns 'Region B' or None."""
+    ql = re.sub(r"[^a-z0-9' ]", " ", q.lower())
+    ql = re.sub(r"\b(and|also|plus|then|now|ok|okay|what|how|about|same|for|in|the|pls|please|so|hi|hey|then|instead|one)\b", " ", ql)
+    m = re.fullmatch(r"\s*region ([a-z])\s*", ql)
+    if not m: return None
+    regions = regions() if callable(regions) else regions   # looked up only when the text is a bare region
+    hit = [x for x in regions if x.lower().startswith("region " + m.group(1))]
+    return ("Region " + m.group(1).upper()) if hit else None
+
+
+def looks_followup(q):
+    """A question that only makes sense with the previous one ('and Region B?', 'why?', 'what about that one?'). With a
+    previous question in the session, ONLY these may skip the off-domain check; 'tell me a joke' in a session may not."""
+    ql = q.lower().strip()
+    return len(re.findall(r"[a-z0-9']+", ql)) <= 12 and bool(re.search(FOLLOWUP_SHAPE, ql))
 
 
 def is_vague(q):

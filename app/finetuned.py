@@ -5,7 +5,8 @@ Code stays the authority: guards run before the model, the JSON is schema-checke
 and the caller's scope, every number in a model answer must appear in the governed result, and any failure falls back
 to the deterministic rules router or the template answer. The same prompt builders are used to make the training data
 (finetune/make_dataset.py), so training and serving prompts cannot drift apart."""
-import json, os, re
+import json, logging, os, re
+LOG = logging.getLogger("nimbuspay.model")   # failure lines carry the error TYPE only, never a key or prompt
 
 ROUTE_SYSTEM = ("You are the NimbusPay adoption-metrics router. Read the user's question and reply with ONE line of JSON: "
                 "{\"tool\": <tool>, \"args\": {...}}. Use a governed tool name, \"refuse\" with args.reason for unsafe or "
@@ -185,12 +186,22 @@ def _set_source(src):
     if src: SOURCE_COUNTS[src] = SOURCE_COUNTS.get(src, 0) + 1
 
 
+def keep_alive():
+    """FT_KEEP_ALIVE (default 30m; the demo launcher sets 24h). A bare number is sent as a number of seconds (-1 = forever),
+    because Ollama parses a string with Go's time.ParseDuration and rejects "-1" (no unit), which would fail every call."""
+    v = os.environ.get("FT_KEEP_ALIVE", "30m").strip() or "30m"
+    try: return int(v)
+    except ValueError:
+        try: return float(v)
+        except ValueError: return v
+
+
 def _chat_body(model, messages, kind, schema=None):
     body = {"model": model, "stream": False, "messages": messages,      # greedy, no repeat penalty: same decoding as the HF eval
             "options": {"temperature": 0, "repeat_penalty": 1.0, "num_predict": 96 if kind == "route" else 220}}
     if kind == "route":
         body["format"] = (schema or route_schema()) if json_schema_on() else "json"
-    body["keep_alive"] = os.environ.get("FT_KEEP_ALIVE", "30m")       # keep the model loaded between questions
+    body["keep_alive"] = keep_alive()                                  # keep the model loaded between questions
     return body
 
 
@@ -245,6 +256,32 @@ def warmup(timeout=120):
         return None
 
 
+def warmup_all(timeout=120):
+    """Startup warm-up of EVERY configured step, each on its own (generate() stops at the first step that answers, so with a
+    remote configured the laptop model would stay cold). Direct calls: warm-ups are not counted in SOURCE_COUNTS.
+    Returns {"remote": seconds | None (failed) | "off", "local": seconds | None | "off", "ready": bool, "line": str}."""
+    import time
+    msgs = route_messages("What is licence utilisation this month?", "executive")
+    out = {}
+    if FT_GENERATE:
+        t = time.time()
+        try: FT_GENERATE(msgs, "route"); out["generator"] = round(time.time() - t, 2)
+        except Exception: out["generator"] = None
+    use = {"remote": bool(remote_url()), "local": not remote_url() or local_fallback_on()} if not FT_GENERATE else {"remote": False, "local": False}
+    for name, call in (("remote", _remote_chat), ("local", _ollama_chat)):
+        if not use[name]: out[name] = "off"; continue
+        t = time.time()
+        try: call(msgs, "route", timeout=timeout); out[name] = round(time.time() - t, 2)
+        except Exception as e: out[name] = None; out[name + "_error"] = type(e).__name__
+    ok = [v for k, v in out.items() if k in ("generator", "remote", "local") and isinstance(v, (int, float))]
+    out["ready"] = bool(ok)
+    fmt = lambda k: ("off" if out.get(k) == "off" else f"warm in {out[k]} s" if isinstance(out.get(k), (int, float))
+                          else f"NOT READY ({out.get(k + '_error', 'failed')})")
+    out["line"] = (("READY" if out["ready"] else "NOT READY (answers will use the rules engine)") + f": fine-tuned brain | "
+                   + f"{remote_label()} {fmt('remote')} | {local_label()} ({ft_model()}) {fmt('local')}")
+    return out
+
+
 def generate(messages, kind, schema=None, timeout=None):
     """One model call through the chain: FT_GENERATE (notebook / tests) > remote (FT_REMOTE_URL) > local Ollama (FT_MODEL).
     Raises if every configured step fails (the Agent then uses the rules engine). eval_finetuned.py uses this same function.
@@ -262,9 +299,13 @@ def generate(messages, kind, schema=None, timeout=None):
             err = e; _REMOTE_STATE["fail"] += 1; _REMOTE_STATE["last_error"] = type(e).__name__ + ": " + str(e)[:120]
             _LOCAL.remote_error = remote_label() + " failed (" + type(e).__name__ + ")"
             _REMOTE_STATE["down_until"] = time.time() + _float_env("FT_REMOTE_COOLDOWN_S", "30")
+            LOG.warning("model step failed: step=remote kind=%s error=%s", kind, type(e).__name__)
     if remote_url() and not local_fallback_on():
         raise err or RuntimeError("remote endpoint cooling down after a failure")
-    out = _ollama_chat(messages, kind, timeout=timeout, schema=schema)
+    try:
+        out = _ollama_chat(messages, kind, timeout=timeout, schema=schema)
+    except Exception as e:
+        LOG.warning("model step failed: step=local model=%s kind=%s error=%s", ft_model(), kind, type(e).__name__); raise
     _set_source(local_label()); return out
 
 

@@ -1,5 +1,9 @@
 """FastAPI server: REST API + the web UI. Local, read-only analytics over SYNTHETIC data."""
-import datetime as dt, html, json, os, re, sqlite3, threading, time
+import datetime as dt, html, json, logging, os, re, sqlite3, threading, time
+LOG = logging.getLogger("nimbuspay")              # one structured line per ask + model-step failures (nimbuspay.model)
+if not LOG.handlers:
+    _h = logging.StreamHandler(); _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    LOG.addHandler(_h); LOG.setLevel(os.environ.get("NP_LOG_LEVEL", "INFO").upper()); LOG.propagate = False
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -37,6 +41,7 @@ class State:
         path = os.environ.get("AUDIT_DB", os.path.join(HERE, "var", "audit.db"))
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         self.audit = sqlite3.connect(path, check_same_thread=False)
+        self.audit_lock = threading.Lock()            # one connection shared by the worker threads: serialise every use
         self.audit.execute("CREATE TABLE IF NOT EXISTS audit(ts TEXT, dataset TEXT, persona TEXT, question TEXT, type TEXT, intent TEXT, metrics TEXT, mode TEXT)")
 
     def load(self, key, data=None, label=None):
@@ -53,12 +58,21 @@ app = FastAPI(title="NimbusPay Adoption Insights", version=__version__)
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 
 
+WARM = {}                                       # last startup warm-up result (also in /api/brain as "warmup")
+
+
 def _warm_finetuned():
-    """NP_BRAIN=finetuned: load the model in the background at startup so the first question isn't slow (keep_alive keeps it)."""
-    import threading
+    """NP_BRAIN=finetuned: load EVERY configured model step (remote and laptop) in the background at startup, so the first
+    question isn't slow and a network drop doesn't hit a cold laptop model, then print one clear READY / NOT READY line."""
     from . import finetuned as FT
+    def run():
+        WARM.update(FT.warmup_all()); WARM["done"] = True
+        print("[brain] " + WARM["line"], flush=True)
     if os.environ.get("NP_BRAIN", "").lower() == "finetuned" and os.environ.get("FT_WARMUP", "1") != "0":
-        threading.Thread(target=lambda: FT.ready() and FT.warmup(), daemon=True).start()
+        print("[brain] fine-tuned brain: warming the model(s) in the background...", flush=True)
+        threading.Thread(target=run, daemon=True).start()
+    else:
+        print(f"[brain] NP_BRAIN={os.environ.get('NP_BRAIN', 'auto')}: {A.brain()['label']} (no fine-tuned warm-up)", flush=True)
 
 
 _warm_finetuned()
@@ -76,7 +90,9 @@ def health():
 
 @app.get("/api/brain")
 def brain(refresh: bool = False):
-    A.brain(refresh); return A.brain_info()
+    A.brain(refresh); info = A.brain_info()
+    if WARM: info["warmup"] = {k: v for k, v in WARM.items()}
+    return info
 
 
 @app.get("/api/scenarios")
@@ -86,6 +102,7 @@ def scenarios():
 
 @app.post("/api/load/{key}")
 def load(key: str):
+    _readonly()
     with S.lock: S.load(key)
     return state()
 
@@ -98,6 +115,7 @@ def state():
 @app.post("/api/upload")
 async def upload(events: UploadFile = File(...), seats: UploadFile = File(...), registry: UploadFile = File(...),
                  verified_hours_week: str = Form(""), cost_index: str = Form(""), critical_risk: str = Form("")):
+    _readonly()
     try:
         texts = [(await f.read()).decode("utf-8-sig") for f in (events, seats, registry)]
         data = P.load(*texts, dict(verified_hours_week=verified_hours_week, cost_index=cost_index, critical_risk=critical_risk))
@@ -130,11 +148,21 @@ def _answer(body):
     prev = (body.previous or "").strip()[:500] or None
     r = CV.respond(S.agent, q, persona, body.session_id, previous=prev)   # guards + role check run on every turn inside
     logged = persona if persona == body.persona else f"{persona} (requested: {body.persona or 'none'})"
-    S.audit.execute("INSERT INTO audit VALUES(?,?,?,?,?,?,?,?)", (dt.datetime.now().isoformat(timespec="seconds"), S.key, logged, q,
-                    r["type"], r["intent"], ",".join(c["metric"] for c in r["citations"]),
-                    r["mode"] + (f" [{r['answered_by']}]" if r.get("answered_by") else "")))
-    S.audit.commit()
+    with S.audit_lock:
+        S.audit.execute("INSERT INTO audit VALUES(?,?,?,?,?,?,?,?)", (dt.datetime.now().isoformat(timespec="seconds"), S.key, logged, q,
+                        r["type"], r["intent"], ",".join(c["metric"] for c in r["citations"]),
+                        r["mode"] + (f" [{r['answered_by']}]" if r.get("answered_by") else "")))
+        S.audit.commit()
+    LOG.info("ask %s", json.dumps(dict(persona=persona, intent=r.get("intent"), type=r.get("type"), mode=r.get("mode"),
+                                       answered_by=r.get("answered_by"), ft_route=r.get("ft_route"), fallback_reason=r.get("fallback_reason"),
+                                       remote_fallback=bool(r.get("remote_fallback")), error=r.get("error"), latency_ms=r.get("latency_ms"))))
     return r
+
+
+def _readonly():
+    """NP_READONLY_PUBLIC=1 (public Space): visitors can't switch or replace the shared dataset mid-pitch."""
+    if os.environ.get("NP_READONLY_PUBLIC", "0") == "1":
+        raise HTTPException(403, "This public demo is read-only: loading or uploading data sets is disabled (NP_READONLY_PUBLIC=1).")
 
 
 @app.post("/api/ask")
@@ -200,6 +228,8 @@ def models():
 @app.post("/api/models/run/{key}")
 def models_run(key: str):
     if key not in dict(MC.BRAINS): raise HTTPException(404, "Unknown brain")
+    if os.environ.get("NP_DEMO", "0") == "1" and key != "rules":   # a full eval on the same CPU/model would starve live questions
+        raise HTTPException(409, "Not during the live demo (NP_DEMO=1): a full model eval would slow the agent. The saved results are shown instead.")
     ok, why = MC.available(key)
     if not ok: raise HTTPException(409, f"Not available: {why}")
     return MC.start(key)
@@ -217,7 +247,8 @@ async def models_upload(file: UploadFile = File(...)):
 
 @app.get("/api/audit")
 def audit(limit: int = 100):
-    rows = S.audit.execute("SELECT * FROM audit ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
+    with S.audit_lock:
+        rows = S.audit.execute("SELECT * FROM audit ORDER BY rowid DESC LIMIT ?", (max(1, min(int(limit), 1000)),)).fetchall()
     return [dict(zip(["ts", "dataset", "persona", "question", "type", "intent", "metrics", "mode"], r)) for r in rows]
 
 

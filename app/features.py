@@ -114,7 +114,8 @@ def lineage(mid, res, db):
     src, sql = LINEAGE.get(mid, ([], None))
     check = None
     if sql:
-        rows = db.execute(sql).fetchall()
+        from .agent import DB_LOCK                  # same shared connection as the agent: serialise
+        with DB_LOCK: rows = db.execute(sql).fetchall()
         check = [list(r) for r in rows] if len(rows) > 1 else rows[0][0]
     m = res["metrics"][mid]
     return dict(metric=mid, name=m["label"], value=m["value"], unit=m["unit"], version=m["version"], approximate=m["approximate"], note=m["note"],
