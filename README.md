@@ -13,7 +13,7 @@ short_description: Hobby demo on synthetic data, governed AI agent
 
 > **Hobby case study, synthetic data only.** This is a personal hobby project built for a campus case-study competition (HashedIn by Deloitte Campus PM Hiring 2026, "The Adoption Mirage"). "NimbusPay" is the fictional company from that case brief. Every number, team, user and event here is synthetic and labelled. It is **not affiliated with, endorsed by, or about any real company**, including nimbuspay.io, HashedIn or Deloitte, and contains no real company or personal data.
 
-**Author:** Gowtham S · **Licence:** MIT · **Live demo:** https://mohithraghava.github.io/nimbuspay-adoption-insights/
+**Author:** Gowtham S · **Licence:** MIT · **Live demo:** https://Gowthamshivanand.github.io/nimbuspay-adoption-insights/
 
 A self-contained, offline, single-file prototype for the NimbusPay "Adoption Mirage" case (HashedIn by Deloitte DPM case, deliverable 7: a prototype of the agent interface and workflow). Its idea: **measure the work, not the clicks.**
 
@@ -57,6 +57,11 @@ pip install -r requirements.txt && python -m app      # then open http://127.0.0
 ```
 Python 3.10+. Dependencies: FastAPI, Uvicorn, python-multipart. The warehouse is SQLite from the standard library.
 
+**Web UI (v2).** The UI is a React + Vite + TypeScript + Tailwind app in `web/`. Its build is **committed** in `app/web/` (text-only JS/CSS), so `python -m app`, Docker and the Hugging Face Space need **no Node**. Only after changing `web/src` do you rebuild: `cd web && npm ci && npm run build` (Node 20+), or `make web`. For live front-end work run `python -m app` (port 8000) and, in a second window, `cd web && npm run dev` (http://127.0.0.1:5173, proxies `/api` to 8000). Same screens, numbers, agent answers and API as v1: only the look and the front-end code changed.
+**Fallback to the v1 UI:** it is kept byte-identical in `app/static/` and always served at `/legacy`; `NP_UI=legacy python -m app` also serves it at `/`. If `app/web/` is missing, `/` falls back to it automatically.
+
+**Fixed (v2): the Docker image was missing `src/data.json`, `tools/` and `tests/data/probes.json`.** The image copied only `app/`, so in Docker (and the Hugging Face Space) "Explain this number" did nothing (`/api/lineage` returned 500) and the Models tab showed the rules engine as "not available". The Dockerfile now copies them (`.dockerignore` and `tools/make_space.py` match), and `tests/test_docker_files.py` fails if any is dropped. This is the only intentional behaviour change in v2. See `CHANGELOG.md`.
+
 ### Architecture
 ```mermaid
 flowchart LR
@@ -90,7 +95,9 @@ flowchart LR
 | `app/server.py` | FastAPI REST API + serves the web UI |
 | `app/features.py` | Seat reclaim finder, what-if simulator, metric lineage, vendor bill reconciler |
 | `app/config.py` | Every threshold and weight in one place (placeholders, to agree) |
-| `app/static/` | The web UI (vanilla JS, no build step) |
+| `web/` | The v2 web UI source: React + Vite + TypeScript + Tailwind. Design tokens in `web/tokens.cjs` (one file) |
+| `app/web/` | The v2 UI build, committed, served at `/` and `/assets/*` |
+| `app/static/` | The v1 web UI (vanilla JS), kept unchanged as the fallback at `/legacy` (and read by some tests) |
 | `app/data/base/` | The v10 workbook's synthetic data as CSVs + the workbook's expected results |
 | `app/data/scenarios/` | 8 synthetic scenarios, each a real CSV data set |
 | `tools/export_workbook.py`, `tools/make_scenarios.py` | Rebuild the CSVs from the workbook (`make data`) |
@@ -117,7 +124,7 @@ On the workbook's extended synthetic set it reproduces **all 35 Expected_Results
 | Board pack | One click: printable HTML (save as PDF) or Markdown |
 | Audit log | Every agent question with persona, result, metrics cited and brain |
 
-The UI follows the deck's brand: white background, charcoal `#222222`, orange `#F28C28` as the accent, teal `#0F5E63` only for verified items, and Arial. Red is used only for critical risk.
+The v2 UI follows the Figma hi-fi tokens (light consulting, Apple-clean): white and neutral greys (`#4B5563` secondary text), navy `#0B2E59` for primary actions and selected states, orange `#E8751A` only as a fill (bars, markers) and `#C2410C` for orange text, teal `#0F5E63` only for verified items, Inter (system font fallback, no font files shipped), 150-180 ms transitions, WCAG AA contrast. Red is used only for critical risk. Every value lives in `web/tokens.cjs`. (The v1 UI at `/legacy` keeps the deck brand: charcoal, orange `#F28C28`, Arial.)
 
 ### The agent and its "brain"
 - **Safety guards are always deterministic** and run first. There are 9: prompt injection, individual surveillance, raw events or PII, small groups (< 5), out-of-scope regions (row-level security by persona), forecasts, causal claims, writes or actions, and ungoverned metrics are refused with a safe alternative. After the answer, a **claim check** means the agent never confirms a number the user typed unless its own SQL computed the same figure. Anything it can't match is never guessed: it says so and offers the 3 closest governed questions it can answer.
@@ -265,7 +272,7 @@ Test (optional): `pip install playwright` and use a Chrome or Chromium binary, t
    - **Subdomain** (for example `adoption.example.com`): add a `CNAME` record from `adoption` to `<username>.github.io`.
    - **Apex** (for example `example.com`): add four `A` records pointing to `185.199.108.153`, `185.199.109.153`, `185.199.110.153` and `185.199.111.153`. Optionally add the AAAA records `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153` and `2606:50c0:8003::153`, plus a `CNAME` from `www` to `<username>.github.io`.
 4. Wait for DNS to propagate (minutes to hours), then tick **Enforce HTTPS**.
-5. Make the QR code: `pip install segno pillow && python tools/make_qr.py https://adoption.example.com --out assets`. The QR files in `assets/` point to the GitHub Pages site, https://mohithraghava.github.io/nimbuspay-adoption-insights/.
+5. Make the QR code: `pip install segno pillow && python tools/make_qr.py https://adoption.example.com --out assets`. The QR files in `assets/` point to the GitHub Pages site, https://Gowthamshivanand.github.io/nimbuspay-adoption-insights/.
 
 ### Alternatives
 - **Netlify:** drag the folder onto app.netlify.com/drop, or connect the repository with no build command and publish directory `.`. For a custom domain, go to Domain settings, then add a CNAME to `<site>.netlify.app` (or an apex `A` record to `75.2.60.5`, or use Netlify DNS).

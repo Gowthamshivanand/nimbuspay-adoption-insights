@@ -4,7 +4,7 @@
 
 ## What's already in the repo
 - **`README.md` front-matter** (the block at the very top): `sdk: docker`, `app_port: 7860`, title, emoji and `license: mit`. Hugging Face reads it; GitHub just shows it as a small table.
-- **`Dockerfile`**: `python:3.12-slim`. It runs as a non-root user (uid 1000, as Spaces expects) and listens on **0.0.0.0:7860**. The environment is `NP_BRAIN=rules`, and the audit log lives in `/tmp` (writable; it resets when the Space restarts). It copies only `requirements.txt` and `app/`. **No secrets, keys or tokens are baked in.**
+- **`Dockerfile`**: `python:3.12-slim`. It runs as a non-root user (uid 1000, as Spaces expects) and listens on **0.0.0.0:7860**. The environment is `NP_BRAIN=rules`, and the audit log lives in `/tmp` (writable; it resets when the Space restarts). It copies `requirements.txt`, `app/` (including the committed v2 UI build in `app/web/`, so no Node is needed) and the three files the app reads outside `app/`: `src/data.json` (metric dictionary for "Explain this number"), `tools/` and `tests/data/probes.json` (the rules eval on the Models tab). Fixed in v2: earlier images copied only `app/`, so those two features failed in the Space. **No secrets, keys or tokens are baked in.**
 - **`.dockerignore`**: keeps tests, docs, videos, zips, any `.env` and any `*.gguf` model file out of the image.
 - **`tools/make_space.py`**: builds the small text-only folder you upload to the Space (see below).
 
@@ -14,7 +14,7 @@ Hugging Face **rejects git pushes that contain binary files** (PNG, MP4, ZIP, PD
 ```bash
 python tools/make_space.py
 ```
-This writes `dist/hf-space/` with `README.md` (front-matter + a short Space description), `Dockerfile`, `.dockerignore`, `requirements.txt`, `LICENSE` and `app/`. It then checks that the folder has no binary files, nothing over 10 MB, nothing that looks like a token or key, no `.env` or `.gguf`, port 7860 and the rules brain. `dist/` is git-ignored.
+This writes `dist/hf-space/` with `README.md` (front-matter + a short Space description), `Dockerfile`, `.dockerignore`, `requirements.txt`, `LICENSE`, `app/`, `src/data.json`, `tools/` and `tests/data/probes.json`. It then checks that the folder has no binary files, nothing over 10 MB, nothing that looks like a token or key, no `.env` or `.gguf`, port 7860 and the rules brain. `dist/` is git-ignored.
 
 ## Step 1: create the Space (2 minutes, in the browser)
 1. Sign in at https://huggingface.co and click **New** > **Space**.

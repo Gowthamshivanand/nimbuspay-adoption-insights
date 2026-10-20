@@ -9,3 +9,4 @@ dist/
 finetune/eval_report.json
 finetune/.public_cache/
 modal_run_*.json
+.venv-parity/

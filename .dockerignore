@@ -5,8 +5,9 @@
 app/var
 docs
 tests
-tools
+!tests/data/probes.json
 src
+!src/data.json
 assets
 finetune
 *.mp4

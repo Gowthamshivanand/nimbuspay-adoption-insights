@@ -3,10 +3,11 @@
     powershell -ExecutionPolicy Bypass -File .\run_demo.ps1            # fine-tuned 1.5B on this laptop (default)
     powershell -ExecutionPolicy Bypass -File .\run_demo.ps1 -Remote    # Modal 7B first: set FT_REMOTE_URL and FT_REMOTE_KEY in this window first
     powershell -ExecutionPolicy Bypass -File .\run_demo.ps1 -Rules     # fallback: rules engine, same numbers and refusals
+    Add -Legacy to any of these to serve the v1 UI at / (the v2 UI build in app\web is committed, so no Node is needed; v1 is always at /legacy).
   Sets the demo settings, checks Ollama and the model, warms it, asks the model-segment questions (tools/preflight.py),
   prints READY / NOT READY, then starts the app on http://127.0.0.1:8000. Keys are never written to this file.
 #>
-param([switch]$Remote, [switch]$Rules, [switch]$SkipCheck, [int]$Port = 8000)
+param([switch]$Remote, [switch]$Rules, [switch]$SkipCheck, [switch]$Legacy, [int]$Port = 8000)
 $ErrorActionPreference = "Continue"
 Set-Location -Path $PSScriptRoot
 
@@ -20,6 +21,15 @@ $env:FT_ANSWER = "0"
 $env:NP_DEMO = "1"
 $env:HOST = "127.0.0.1"
 $env:PORT = "$Port"
+if ($Legacy) {
+    $env:NP_UI = "legacy"
+    Write-Host "UI: v1 (legacy) at http://127.0.0.1:$Port/" -ForegroundColor Yellow
+} else {
+    Remove-Item Env:NP_UI -ErrorAction SilentlyContinue
+    if (-not (Test-Path (Join-Path $PSScriptRoot "app\web\index.html"))) {
+        Write-Host "Note: app\web\index.html is missing, so the v1 UI is served. Rebuild: cd web; npm ci; npm run build" -ForegroundColor Yellow
+    }
+}
 
 if ($Remote) {
     if (-not $env:FT_REMOTE_URL) {

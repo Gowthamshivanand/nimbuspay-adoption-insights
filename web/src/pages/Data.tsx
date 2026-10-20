@@ -1,0 +1,53 @@
+import { useState, type FormEvent } from "react";
+import * as C from "../api/client";
+import type { J } from "../lib/api";
+import { useApp } from "../lib/store";
+import { FileField, Header } from "../components/ui";
+import PipelineSummary from "./Pipeline";
+
+export default function Data() {
+  const { ST, setST, SCEN, show, tab, clearChat } = useApp();
+  const [msg, setMsg] = useState("");
+  const load = async (k: string) => {
+    try { const s = await C.loadScenario(k); setST(s); clearChat(); show(tab === "data" ? "exec" : tab); }
+    catch (e) { console.error(e); }                 // legacy: no UI message (e.g. 403 on the read-only public Space)
+  };
+  const upload = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    try { const s = await C.uploadCsvs(new FormData(e.currentTarget)); setST(s); show("exec"); }
+    catch (x) { setMsg("Rejected: " + (x as Error).message); }
+  };
+  return (
+    <>
+      <Header title="Data">Pick a synthetic scenario (each one is real CSV data run through the full pipeline), or upload your own event, seat and registry CSVs.</Header>
+      <div className="sc grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))" }}>
+        {SCEN.map((s: J) => (
+          <div key={s.key} className={`tile flex flex-col transition-colors duration-fast ${s.key === ST.dataset ? "on !border-accent shadow-[inset_0_0_0_1px_theme(colors.accent)]" : ""}`}>
+            <div className="flex items-center justify-between gap-2"><b className="font-semibold">{s.label}</b>{s.key === ST.dataset ? <span className="eyebrow !text-accent">Loaded</span> : null}</div>
+            <p className="muted text-[13px] mt-1 mb-3 flex-1">{s.note}</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button className="ghost" data-testid={`scen-${s.key}`} onClick={() => load(s.key)}>Load</button>
+              <span className="muted text-[12px]">CSV: <a href={C.sampleCsvUrl(s.key, "events.csv")}>events</a> <a href={C.sampleCsvUrl(s.key, "seats.csv")}>seats</a> <a href={C.sampleCsvUrl(s.key, "registry.csv")}>registry</a></span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <h2>Upload CSVs</h2>
+      <form id="up" className="tile" onSubmit={upload}>
+        <div className="grid-auto">
+          <div className="field"><span>events.csv</span><FileField name="events" accept=".csv" label="Choose events.csv" /></div>
+          <div className="field"><span>seats.csv</span><FileField name="seats" accept=".csv" label="Choose seats.csv" /></div>
+          <div className="field"><span>registry.csv</span><FileField name="registry" accept=".csv" label="Choose registry.csv" /></div>
+        </div>
+        <div className="grid-auto mt-4">
+          <label className="field">Verified hours / week (from study, optional) <input name="verified_hours_week" /></label>
+          <label className="field">Cost index vs current process (placeholder, optional) <input name="cost_index" /></label>
+          <label className="field">Critical risk (optional) <input name="critical_risk" /></label>
+        </div>
+        <p className="mt-4 flex items-center gap-3"><button className="btn">Run pipeline</button> <span id="upmsg" className="muted">{msg}</span></p>
+      </form>
+      <h2>Pipeline result for this dataset</h2>
+      <div className="tile" id="q"><PipelineSummary /></div>
+    </>
+  );
+}
