@@ -8,6 +8,17 @@ A `redesign-v2.zip` (the full tree) and `redesign-v2.patch` are also provided, a
 
 Needs: Git, Python 3.12, Node 20+ (for the `npm ci` build gate), Docker Desktop running (for gate G7).
 
+**Final commit.** The last code commit is `09abbad10f83a317fb6fef5492ee8b47e9c85c90` ("Models table headers keep label and number together").
+The branch tip is one docs-only commit on top of it that writes this file (a commit cannot contain its own hash).
+After step 2, check:
+
+```powershell
+git rev-parse redesign-v2~1                     # expect 09abbad10f83a317fb6fef5492ee8b47e9c85c90
+git diff --stat redesign-v2~1 redesign-v2       # expect only PUSH_STEPS.md
+git merge-base --is-ancestor d2dc703 redesign-v2; $LASTEXITCODE   # expect 0 (fast-forward from main)
+```
+If any of these differ, STOP and tell Mohith.
+
 ```powershell
 # 0. Get the repo and make sure main is the expected v1 commit
 cd $HOME\nimbuspay-adoption-insights            # or: git clone https://github.com/Gowthamshivanand/nimbuspay-adoption-insights; cd nimbuspay-adoption-insights
@@ -26,7 +37,11 @@ git fetch $HOME\Downloads\redesign-v2.bundle redesign-v2:redesign-v2
 git checkout redesign-v2
 git push -u origin redesign-v2
 
-# 3. Verify a FRESH clone of the pushed branch (all 8 gates, including Docker)
+# 2b. Docker fix (approved by Mohith): it is already inside redesign-v2. Confirm the four files are in the branch
+git diff --stat d2dc703 redesign-v2 -- Dockerfile .dockerignore tools/make_space.py tests/test_docker_files.py   # expect 4 files changed
+python -m pytest -q tests/test_docker_files.py                                                                    # expect 4 passed
+
+# 3. Verify a FRESH clone of the pushed branch (all 8 gates, including Docker). Start Docker Desktop first; do NOT pass -NoDocker
 powershell -ExecutionPolicy Bypass -File parity\verify_parity.ps1 -Fresh https://github.com/Gowthamshivanand/nimbuspay-adoption-insights -Branch redesign-v2
 ```
 
@@ -42,6 +57,36 @@ git push origin main
 ```powershell
 # 4b. Any FAIL: do NOT merge. main stays v1. Report the failing gate lines and the "Logs:" folder to Mohith.
 git checkout main
+```
+
+## G7 Docker check on your machine (Gowtham)
+G7 has only been run on a machine with Docker by you: Mohith's build box has no Docker, so G0-G6 passed there and G7 is still open.
+`verify_parity.ps1` runs it automatically when Docker Desktop is running. To check it by hand from the `redesign-v2` checkout:
+
+```powershell
+docker build -t nimbuspay-v2 .
+$cid = (docker run -d --rm -p 7860:7860 nimbuspay-v2).Trim()
+Start-Sleep 15
+(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:7860/api/health).StatusCode                  # expect 200
+(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:7860/).Content.Contains("Adoption Insights")  # expect True
+(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:7860/api/lineage/M01).StatusCode              # expect 200 (fails without the Docker fix)
+((Invoke-WebRequest -UseBasicParsing http://127.0.0.1:7860/api/models).Content | ConvertFrom-Json).brains | Where-Object key -eq rules | ForEach-Object { $_.result.golden }   # expect passed 21, total 21 (may take ~60 s to appear)
+docker stop $cid
+```
+Merge only if the script's G7 line reads `[PASS] G7 Docker :7860 health + UI + state + lineage 200 + rules eval 21/21`.
+
+## If redesign-v2 fails a gate: Docker fix alone (only with Mohith's OK)
+`docker-fix.patch` (sent with the bundle) is the same Docker fix as a standalone patch against `main` (`d2dc703`). Never commit it straight onto main:
+
+```powershell
+git checkout -b docker-fix main
+git apply --check $HOME\Downloads\docker-fix.patch          # must print nothing
+git apply $HOME\Downloads\docker-fix.patch
+git add Dockerfile .dockerignore tools/make_space.py tests/test_docker_files.py
+git commit -m "Fixed: Docker image was missing src/data.json and tools/ (and tests/data/probes.json for the rules eval)"
+python -m pytest -q                                           # expect 394 passed, 1 skipped (checked on d2dc703 + this patch)
+# then run the G7 Docker check above on this branch, push it (normal push) and ask Mohith before merging
+git push -u origin docker-fix
 ```
 
 If `git merge --ff-only` refuses (main moved), stop and tell Mohith; don't use any other merge mode without his OK.
