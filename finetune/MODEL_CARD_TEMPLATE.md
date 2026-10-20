@@ -8,7 +8,7 @@ datasets: [{{HF_USER}}/gowtham-nimbuspay-agent-data]
 # gowtham-nimbuspay-agent ({{BASE_MODEL}} + {{METHOD}})
 
 **Hobby project, synthetic data only.** This is the router and answer writer for the NimbusPay Adoption Insights Agent, a case-study app at
-https://github.com/Gowthamshivanand/nimbuspay-adoption-insights. It has no link to the real NimbusPay or any real company.
+https://github.com/mohithraghava/nimbuspay-adoption-insights. It has no link to the real NimbusPay or any real company.
 
 ## What it does
 1. **Route:** question + role (+ previous question) -> `{"tool": ..., "args": {...}}`, one of 30 governed tools, `refuse` with a reason, or `none`.

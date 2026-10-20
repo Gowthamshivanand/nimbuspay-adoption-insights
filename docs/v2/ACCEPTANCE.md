@@ -15,8 +15,8 @@ git push -u origin redesign-v2
 ```
 Merge only after a **fresh-clone** run of the gate passes:
 ```bash
-bash parity/verify_parity.sh --fresh https://github.com/Gowthamshivanand/nimbuspay-adoption-insights redesign-v2
-# Windows:  powershell -ExecutionPolicy Bypass -File parity\verify_parity.ps1 -Fresh https://github.com/Gowthamshivanand/nimbuspay-adoption-insights -Branch redesign-v2
+bash parity/verify_parity.sh --fresh https://github.com/mohithraghava/nimbuspay-adoption-insights redesign-v2
+# Windows:  powershell -ExecutionPolicy Bypass -File parity\verify_parity.ps1 -Fresh https://github.com/mohithraghava/nimbuspay-adoption-insights -Branch redesign-v2
 ```
 `OVERALL: PASS` → `git checkout main && git merge --no-ff redesign-v2 && git push origin main` (a normal push).
 `OVERALL: FAIL` → do not merge. Fix the problem on `redesign-v2` and re-run. If the deadline arrives first, **submit `main` as it is (v1)**.

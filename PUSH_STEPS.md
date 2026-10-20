@@ -21,7 +21,7 @@ If any of these differ, STOP and tell Mohith.
 
 ```powershell
 # 0. Get the repo and make sure main is the expected v1 commit
-cd $HOME\nimbuspay-adoption-insights            # or: git clone https://github.com/Gowthamshivanand/nimbuspay-adoption-insights; cd nimbuspay-adoption-insights
+cd $HOME\nimbuspay-adoption-insights            # or: git clone https://github.com/mohithraghava/nimbuspay-adoption-insights; cd nimbuspay-adoption-insights
 git checkout main
 git pull --ff-only origin main
 git log -1 --format=%H                          # expect d2dc703f8f600031534763164a73ace8fa475b9f (if different, STOP and tell Mohith)
@@ -42,7 +42,7 @@ git diff --stat d2dc703 redesign-v2 -- Dockerfile .dockerignore tools/make_space
 python -m pytest -q tests/test_docker_files.py                                                                    # expect 4 passed
 
 # 3. Verify a FRESH clone of the pushed branch (all 8 gates, including Docker). Start Docker Desktop first; do NOT pass -NoDocker
-powershell -ExecutionPolicy Bypass -File parity\verify_parity.ps1 -Fresh https://github.com/Gowthamshivanand/nimbuspay-adoption-insights -Branch redesign-v2
+powershell -ExecutionPolicy Bypass -File parity\verify_parity.ps1 -Fresh https://github.com/mohithraghava/nimbuspay-adoption-insights -Branch redesign-v2
 ```
 
 Read the last lines. Merge **only** on `OVERALL: PASS` (G0 to G7 all `[PASS]`):

@@ -100,7 +100,7 @@ See [`modal/README.md`](modal/README.md): full 1.5B run 3 and the 7B on Modal GP
 One command per line, no `&&` / `||`. Run them in a new PowerShell window, in the folder where you want the repo. If `python` is not found, use `py` instead. `PYTHONUTF8=1` makes Python read the repo's UTF-8 files the same way as on Linux.
 ```powershell
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-Invoke-WebRequest -Uri "https://github.com/Gowthamshivanand/nimbuspay-adoption-insights/archive/refs/heads/main.zip" -OutFile "nimbuspay-main.zip" -UseBasicParsing
+Invoke-WebRequest -Uri "https://github.com/mohithraghava/nimbuspay-adoption-insights/archive/refs/heads/main.zip" -OutFile "nimbuspay-main.zip" -UseBasicParsing
 Expand-Archive -Path "nimbuspay-main.zip" -DestinationPath "." -Force
 Set-Location ".\nimbuspay-adoption-insights-main"
 python -m venv .venv

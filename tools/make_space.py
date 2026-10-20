@@ -6,7 +6,7 @@ Then upload it yourself (see docs/DEPLOY_HF_SPACES.md). Nothing here talks to th
 import os, re, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "dist", "hf-space")
-REPO_URL = "https://github.com/Gowthamshivanand/nimbuspay-adoption-insights"
+REPO_URL = "https://github.com/mohithraghava/nimbuspay-adoption-insights"
 SECRET = re.compile(r"(hf_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_\-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)")
 SKIP_DIRS = {"__pycache__", "var"}
 DOCKER_EXTRA = ("src/data.json", "tools", "tests/data/probes.json")   # must match the Dockerfile COPY lines
