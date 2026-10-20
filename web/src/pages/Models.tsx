@@ -60,9 +60,9 @@ export default function Models() {
       {!M ? <div id="mdl" className="muted">Loading...</div> : (
         <>
           <div className="tile !p-0 overflow-auto">
-            <table data-testid="models">
+            <table data-testid="models" className="[&_th]:!px-3 [&_td]:!px-3">
               <tbody>
-                <tr><th>Brain</th><th>Golden 21</th><th>Panel 24</th><th>Extra 40</th><th>Unsafe answers</th><th>Number faithfulness</th><th>p50</th><th>p95</th><th>Release gate</th></tr>
+                <tr><th>Brain</th><th className="whitespace-nowrap">Golden 21</th><th className="whitespace-nowrap">Panel 24</th><th className="whitespace-nowrap">Extra 40</th><th className="whitespace-nowrap">Unsafe answers</th><th>Number faithfulness</th><th>p50</th><th>p95</th><th className="whitespace-nowrap">Release gate</th></tr>
                 {M.brains.map((x: J) => <Row key={x.key} name={x.label} st={x.key} r={x.result} extra={[x.result ? x.result.brain.label : "", x.result ? "Run " + fmtTs(x.result.generated_at) : "", capFirst(x.reason), x.note ? capFirst(x.note) : "", x.run.state === "running" ? "Running now..." : ""].filter(Boolean).join(" \u00b7 ")} />)}
                 {M.uploaded.map((u: J, i: number) => <Row key={"up" + i} name={u.brain.label || u.requested_brain} st={"up-" + i} r={u} extra={u.source + " \u00b7 Run " + (u.generated_at ? fmtTs(u.generated_at) : "?")} />)}
               </tbody>
