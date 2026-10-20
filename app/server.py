@@ -55,7 +55,10 @@ class State:
 
 S = State()
 app = FastAPI(title="NimbusPay Adoption Insights", version=__version__)
-app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")      # legacy UI (unchanged), also at /legacy
+WEB = os.path.join(HERE, "web")                     # v2 UI: React build output of web/ (npm run build). Committed, text-only.
+if os.path.isdir(os.path.join(WEB, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(WEB, "assets")), name="assets")
 
 
 WARM = {}                                       # last startup warm-up result (also in /api/brain as "warmup")
@@ -78,8 +81,18 @@ def _warm_finetuned():
 _warm_finetuned()
 
 
+def _use_v2():
+    """NP_UI=legacy forces the old UI; otherwise the v2 build is served when it exists (legacy if it was never built)."""
+    return os.environ.get("NP_UI", "v2").lower() != "legacy" and os.path.isfile(os.path.join(WEB, "index.html"))
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
+    return FileResponse(os.path.join(WEB, "index.html") if _use_v2() else os.path.join(HERE, "static", "index.html"))
+
+
+@app.get("/legacy", response_class=HTMLResponse)
+def legacy_index():
     return FileResponse(os.path.join(HERE, "static", "index.html"))
 
 

@@ -1,7 +1,8 @@
-.PHONY: install run test test-ui data docker
+.PHONY: install run test test-ui data docker web
 install:   ; pip install -r requirements.txt
 run:       ; python -m app
-test:      ; python -m pytest -q tests/test_pipeline.py tests/test_agent.py tests/test_probes.py tests/test_persona.py tests/test_api.py tests/test_features.py tests/test_brain.py tests/test_cost.py tests/test_improvements.py tests/test_break_it.py tests/test_space.py tests/test_finetuned.py tests/test_remote_brain.py tests/test_demo_hardening.py && python tools/eval_agent.py --brain rules && python tools/break_it.py
-test-ui:   ; python -m pytest -q tests/test_ui_playwright.py tests/test_ui_features_playwright.py tests/test_ui_hardening_playwright.py
+test:      ; python -m pytest -q tests/test_pipeline.py tests/test_agent.py tests/test_probes.py tests/test_persona.py tests/test_api.py tests/test_features.py tests/test_brain.py tests/test_cost.py tests/test_improvements.py tests/test_break_it.py tests/test_space.py tests/test_finetuned.py tests/test_remote_brain.py tests/test_demo_hardening.py tests/test_docker_files.py && python tools/eval_agent.py --brain rules && python tools/break_it.py
+test-ui:   ; python -m pytest -q tests/test_ui_playwright.py tests/test_ui_features_playwright.py tests/test_ui_hardening_playwright.py tests/test_ui_v2_playwright.py
 data:      ; python tools/export_workbook.py && python tools/make_scenarios.py
 docker:    ; docker build -t nimbuspay-insights . && docker run --rm -p 7860:7860 nimbuspay-insights   # same image as the Hugging Face Space
+web:       ; cd web && npm ci && npm run build   # only after editing web/src; the build in app/web/ is committed

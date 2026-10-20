@@ -9,6 +9,7 @@ OUT = os.path.join(ROOT, "dist", "hf-space")
 REPO_URL = "https://github.com/Gowthamshivanand/nimbuspay-adoption-insights"
 SECRET = re.compile(r"(hf_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_\-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)")
 SKIP_DIRS = {"__pycache__", "var"}
+DOCKER_EXTRA = ("src/data.json", "tools", "tests/data/probes.json")   # must match the Dockerfile COPY lines
 
 
 def front_matter():
@@ -27,6 +28,11 @@ def build():
     for f in ("Dockerfile", ".dockerignore", "requirements.txt", "LICENSE"):
         shutil.copy2(os.path.join(ROOT, f), OUT)
     shutil.copytree(os.path.join(ROOT, "app"), os.path.join(OUT, "app"), ignore=lambda d, names: [n for n in names if n in SKIP_DIRS or n.endswith((".pyc", ".db"))])
+    ign = lambda d, names: [n for n in names if n in SKIP_DIRS or n.endswith((".pyc", ".db"))]
+    for f in DOCKER_EXTRA:                          # the Dockerfile COPYs these too (lineage + Models rules eval)
+        src, dst = os.path.join(ROOT, f), os.path.join(OUT, f)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copytree(src, dst, ignore=ign) if os.path.isdir(src) else shutil.copy2(src, dst)
     readme = front_matter() + f"""
 # NimbusPay Adoption Insights (live demo)
 
