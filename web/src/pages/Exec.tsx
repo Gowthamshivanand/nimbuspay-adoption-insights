@@ -35,10 +35,10 @@ export default function Exec() {
         </div>
       </div>
       <h2>Headline governed metrics</h2>
-      <div className="grid-auto">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {["M01", "M02", "M04", "M07", "M10", "M17", "M18"].map((id) => <Kpi key={id} id={id} label={M[id].label + (M[id].approximate ? " (approx.)" : "")} val={fmt(M[id].value, M[id].unit)} sub={M[id].note} />)}
       </div>
-      <h2>Licence funnel LF1-LF6</h2>
+      <h2>Licence funnel LF1–LF6</h2>
       <div className="tile" data-testid="funnel">
         <Bars rows={[["LF1 Purchased", f.LF1], ["LF2 Assigned", f.LF2], ["LF3 Provisioned", f.LF3], ["LF4 Active", f.LF4], ["LF5 Engaged", f.LF5], ["LF6 Habitual", f.LF6]]} max={f.LF1} />
         <p className="muted mt-3 text-[13px]">Vendor-style MAU proxy {ST.users.vendor_mau_proxy} vs truly active {f.LF4}. {ST.paid_unused} paid seats have no qualifying use.</p>

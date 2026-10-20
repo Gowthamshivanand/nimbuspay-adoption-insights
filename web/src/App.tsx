@@ -6,7 +6,7 @@ import * as C from "./api/client";
 import type { J } from "./lib/api";
 import { AppCtx, GROUPS, TABS, type ChatMsg, type Ctx, type Tab } from "./lib/store";
 import { LineageModal, WhyModal } from "./components/Explain";
-import { ROLES, cap } from "./lib/format";
+import { cap } from "./lib/format";
 import Data from "./pages/Data";
 import Exec from "./pages/Exec";
 import WhatIf from "./pages/WhatIf";
@@ -23,6 +23,7 @@ import Models from "./pages/Models";
 
 const SCREENS: Record<Tab, () => JSX.Element | null> = { data: Data, exec: Exec, whatif: WhatIf, seats: Seats, region: Region, eng: Eng, agent: Agent, alerts: Alerts, compare: Compare, pack: Pack, audit: Audit, cost: Cost, models: Models };
 const LABEL = Object.fromEntries(TABS) as Record<Tab, string>;
+const SEGMENTS = ["executive", "manager", "analyst", "guest"];
 const SID = "s-" + ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
 export default function App() {
@@ -117,37 +118,43 @@ export default function App() {
           <div className="flex items-center gap-3 text-[15px]">
             <span className="w-2 h-2 rounded-full bg-accentFill" aria-hidden="true"></span>
             <span><b className="font-semibold text-navy">NimbusPay</b> Adoption Insights</span>
-            <span className="tag !mr-0 border border-line bg-canvas">live product</span>
+            <span className="tag !mr-0 border border-line bg-canvas max-[479px]:hidden">live product</span>
             <span className="tag !mr-0 border border-accent bg-canvas text-accent font-semibold">SYNTHETIC DATA</span>
           </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="roles flex items-center gap-1 flex-wrap" data-testid="role-switch" title="Role switch: scope is enforced on the server, the UI only sends the role name">
-              <span className="eyebrow mr-1">Role</span>
-              <div className="inline-flex rounded-control border border-lineStrong p-0.5 bg-surface">
-                {ROLES.map((r) => (
-                  <button key={r} type="button" data-role={r} data-testid={`role-${r}`} onClick={() => setPersona(r)}
-                    className={`role px-3 py-1 rounded-[6px] text-[13px] transition-colors duration-fast ${persona === r ? (r === "guest" ? "on bg-critical text-white font-semibold" : "on bg-navy text-white font-semibold") : "text-ink hover:bg-canvas"}`}>{cap(r)}</button>
+          <div className="flex items-center gap-x-4 gap-y-2 flex-wrap min-w-0 max-w-full">
+            {/* One role control: four segments plus "More roles" for the other personas. Same testids and behaviour as v1. */}
+            <div className="roles flex items-center gap-2 min-w-0 max-w-full" data-testid="role-switch" title="Role switch: scope is enforced on the server, the UI only sends the role name">
+              <span className="eyebrow max-sm:hidden">Role</span>
+              <div className="inline-flex items-center rounded-control border border-lineStrong p-0.5 bg-surface max-w-full overflow-x-auto">
+                {SEGMENTS.map((r) => (
+                  <button key={r} type="button" data-role={r} data-testid={`role-${r}`} onClick={() => setPersona(r)} aria-pressed={persona === r}
+                    className={`role px-2 sm:px-3 py-1 rounded-[6px] text-[12px] sm:text-[13px] whitespace-nowrap transition-colors duration-fast ${persona === r ? (r === "guest" ? "on bg-critical text-white font-semibold" : "on bg-navy text-white font-semibold") : "text-ink hover:bg-canvas"}`}>{cap(r)}</button>
                 ))}
+                <select id="persona" data-testid="persona" aria-label="More roles" value={SEGMENTS.includes(persona) ? "" : persona} onChange={(e) => e.target.value && setPersona(e.target.value)}
+                  className={`!border-0 !rounded-[6px] !py-1 !pl-3 !pr-7 text-[12px] sm:text-[13px] max-w-[124px] sm:max-w-[190px] ${SEGMENTS.includes(persona) ? "!bg-transparent text-ink" : "on !bg-navy !text-white font-semibold"}`}>
+                  <option value="" disabled>More roles</option>
+                  {personas && Object.entries(personas).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
               </div>
-              <select id="persona" data-testid="persona" aria-label="All roles" value={persona} onChange={(e) => setPersona(e.target.value)} className="ml-1 !py-1 text-[13px]">
-                {personas && Object.entries(personas).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
             </div>
-            <span id="ds" className="muted text-[12px]">{ST ? `Dataset: ${ST.dataset_label} | data as of ${ST.data_as_of}` : ""}</span>
+            <span id="ds" className="muted text-[12px]">{ST ? <><span className="whitespace-nowrap">Dataset: {ST.dataset_label}</span> | <span className="whitespace-nowrap">data as of {ST.data_as_of}</span></> : ""}</span>
           </div>
         </header>
         <div className="flex flex-1 flex-col lg:flex-row">
-          <nav id="tabs" aria-label="Screens" className="lg:w-[200px] shrink-0 border-b lg:border-b-0 lg:border-r border-line bg-surface px-3 py-3 lg:py-6 flex lg:flex-col gap-1 lg:gap-5 flex-wrap lg:sticky lg:top-0 lg:self-start lg:min-h-screen">
-            {GROUPS.map(([g, ts]) => (
-              <div key={g} className="flex lg:flex-col gap-0.5 flex-wrap">
-                <div className="eyebrow px-3 mb-1 hidden lg:block">{g}</div>
-                {ts.map((k) => (
-                  <button key={k} data-tab={k} id={`tab-${k}`} onClick={() => show(k)} aria-current={tab === k ? "page" : undefined}
-                    className={`text-left px-3 py-1.5 rounded-control text-[13px] transition-colors duration-fast ${tab === k ? "on bg-canvas text-ink font-semibold shadow-[inset_2px_0_0_theme(colors.accentFill)] border border-line" : "text-muted border border-transparent hover:text-ink"}`}>{LABEL[k]}</button>
-                ))}
-              </div>
-            ))}
-          </nav>
+          {/* Full-height sidebar column; the nav inside it is sticky. Below lg: one horizontally scrolling row of tabs. */}
+          <div className="lg:w-[200px] shrink-0 bg-surface border-b lg:border-b-0 lg:border-r border-line">
+            <nav id="tabs" aria-label="Screens" className="px-3 py-2 lg:py-6 flex lg:flex-col gap-1 lg:gap-5 flex-nowrap overflow-x-auto lg:overflow-visible lg:sticky lg:top-0">
+              {GROUPS.map(([g, ts]) => (
+                <div key={g} className="flex lg:flex-col gap-0.5 flex-nowrap shrink-0">
+                  <div className="eyebrow px-3 mb-1 hidden lg:block">{g}</div>
+                  {ts.map((k) => (
+                    <button key={k} data-tab={k} id={`tab-${k}`} onClick={() => show(k)} aria-current={tab === k ? "page" : undefined}
+                      className={`text-left px-3 py-1.5 min-h-[44px] lg:min-h-0 whitespace-nowrap rounded-control text-[13px] transition-colors duration-fast ${tab === k ? "on bg-canvas text-ink font-semibold shadow-[inset_2px_0_0_theme(colors.accentFill)] border border-line" : "text-muted border border-transparent hover:text-ink"}`}>{LABEL[k]}</button>
+                  ))}
+                </div>
+              ))}
+            </nav>
+          </div>
           <main id="view" className="flex-1 min-w-0 px-6 lg:px-10 py-8 max-w-[1200px]">
             {ST && personas ? (
               <Routes>

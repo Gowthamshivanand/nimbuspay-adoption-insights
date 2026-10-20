@@ -44,7 +44,7 @@
   .red { @apply text-critical font-semibold; }
   .ok { @apply text-verified font-semibold; }
   .na { @apply text-muted italic; }
-  .tag { @apply inline-block text-[11px] leading-[18px] px-2 rounded-full bg-[#F2F2F2] text-ink mr-1.5 align-middle; }
+  .tag { @apply whitespace-nowrap inline-block text-[11px] leading-[18px] px-2 rounded-full bg-[#F2F2F2] text-ink mr-1.5 align-middle; }
   .tag.met, .tag.b-finetuned { @apply bg-verified text-white; }
   .tag.b-ollama, .tag.b-openai { @apply bg-accentSoft text-[#7C2D12]; }
   .tag.lat { @apply bg-canvas border border-line; }
@@ -75,5 +75,5 @@
   .field { @apply flex flex-col gap-1.5 text-[13px]; }
 }
 @keyframes blink { 50% { opacity: 0; } }
-@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade { from { opacity: 0.6; } to { opacity: 1; } }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

@@ -7,7 +7,6 @@ import { Modal } from "./ui";
 export function LineageModal({ L, onClose }: { L: J; onClose: () => void }) {
   return (
     <Modal id="lin" onClose={onClose} width={740} testid="lineage">
-      <div className="eyebrow mb-1">Explain this number</div>
       <h2 className="!mt-0 !text-[18px]">Explain this number: {L.metric} {L.name} = {L.value ?? "withheld"}{L.unit === "%" ? "%" : ""}</h2>
       <table>
         <tbody>
@@ -54,7 +53,7 @@ export function WhyModal({ m, L, ST, onClose }: { m: ChatMsg; L: (J | null)[]; S
               <tr key={id}>
                 <td><b>{id}</b> {l ? l.version : (b.citations.find((c: J) => c.metric === id) || {}).version}</td>
                 <td>{l ? l.name : mm ? mm.label : "Licence funnel stage"}</td>
-                <td>{l ? l.formula : mm ? mm.note : "Seat funnel stage LF1-LF6 from the seats and events tables"}</td>
+                <td>{l ? l.formula : mm ? mm.note : "Seat funnel stage LF1–LF6 from the seats and events tables"}</td>
                 <td className="muted">{l ? l.owner : ""}</td>
               </tr>
             );

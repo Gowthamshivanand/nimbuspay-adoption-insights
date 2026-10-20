@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as C from "../api/client";
 import type { J } from "../lib/api";
-import { money } from "../lib/format";
+import { hideRefs, keyLabel, keyValue, money } from "../lib/format";
 import { Header } from "../components/ui";
 
 export default function Cost() {
@@ -39,15 +39,15 @@ export default function Cost() {
               <div className="out mt-1" data-testid="c-monthly">{money(r.monthly_cost_usd)}</div>
               <p className="mt-3 leading-7">Cost per question: <b>{r.cost_per_query_usd === null ? "n/a" : "$" + r.cost_per_query_usd}</b><br />Estimated p95 latency: <b>{r.p95_latency_s} s</b> <span className="tag">{r.p95_basis}</span><br />
                 Model hosts needed: <b>{r.model_instances}</b> + app hosts: <b>{r.app_instances}</b></p>
-              <p className="muted text-[12px] mt-2">{r.queries_per_day} questions/day, {r.llm_queries_per_day} to the LLM. App host {money(r.app_host_usd)} + model {money(r.model_cost_usd)}. {r.note}</p>
+              <p className="muted text-[12px] mt-2">{r.queries_per_day} questions/day, {r.llm_queries_per_day} to the LLM. App host {money(r.app_host_usd)} + model {money(r.model_cost_usd)}. {hideRefs(r.note)}</p>
             </>
           ) : null}
         </div>
       </div>
       <h2>Assumptions</h2>
-      <div className="tile !p-0 overflow-auto"><table><tbody>{M.assumptions.map((a: J, i: number) => <tr key={i}><td>{a.key}</td><td>{a.value}</td><td className="muted">{a.note}</td></tr>)}</tbody></table></div>
+      <div className="tile !p-0 overflow-auto"><table><tbody>{M.assumptions.map((a: J, i: number) => <tr key={i}><td className="whitespace-nowrap" title={a.key}>{keyLabel(a.key)}</td><td>{keyValue(a.key, a.value)}</td><td className="muted">{hideRefs(a.note)}</td></tr>)}</tbody></table></div>
       <h2>Sources (checked {M.sources.S13.checked})</h2>
-      <div className="tile !p-0 overflow-auto"><table><tbody>{Object.entries(M.sources).map(([k, s]: [string, J]) => <tr key={k}><td>{k}</td><td>{s.label}<div className="muted text-[12px]">{s.url}</div></td></tr>)}</tbody></table></div>
+      <div className="tile !p-0 overflow-auto"><table><tbody>{Object.entries(M.sources).map(([k, s]: [string, J]) => <tr key={k}><td>{k}</td><td>{hideRefs(s.label)}{/^https?:/.test(s.url) ? <div className="muted text-[12px] break-all">{s.url}</div> : null}</td></tr>)}</tbody></table></div>
     </>
   );
 }

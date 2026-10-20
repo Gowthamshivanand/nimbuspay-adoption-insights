@@ -71,3 +71,21 @@ def test_np_ui_legacy_flag_serves_the_old_ui_at_root(tmp_path):
     p, url = _serve(tmp_path, NP_UI="legacy")
     try: assert urllib.request.urlopen(url + "/").read().decode() == open(os.path.join(ROOT, "app", "static", "index.html"), encoding="utf-8").read()
     finally: p.terminate(); p.wait(5)
+
+
+def test_v2_controls_keep_v1_behaviour(server, browser):
+    """Role control (4 segments + More roles), 6 grouped chips + Show all 22, board pack restyled on display only."""
+    pg = browser.new_page(viewport={"width": 1440, "height": 900}); errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(server); pg.wait_for_selector("[data-testid=scen-baseline]")
+    assert "on" in pg.get_attribute("[data-testid=role-executive]", "class")          # default persona lights its segment
+    pg.select_option("#persona", "finance"); pg.click("#tab-agent")
+    assert "Finance" in pg.inner_text("[data-testid=role-now]")
+    pg.click("[data-testid=role-guest]"); assert "Unrecognised" in pg.inner_text("[data-testid=role-now]")
+    assert pg.locator("[data-testid^=gq-]:not([data-testid=gq-toggle])").count() == 6
+    pg.click("[data-testid=gq-toggle]"); assert pg.locator("[data-testid^=gq-]:not([data-testid=gq-toggle])").count() == 22
+    assert pg.inner_text("[data-testid=gq-22]") == "What renewal outcome do you recommend?"
+    pg.click("#tab-pack"); pg.wait_for_function("(() => { const f = document.querySelector('[data-testid=pack-frame]'); return f && f.contentDocument && f.contentDocument.getElementById('np-v2-style'); })()")
+    fr = pg.frame_locator("[data-testid=pack-frame]")
+    assert fr.locator("button").evaluate("b => getComputedStyle(b).display") == "none"
+    assert fr.locator("h1").evaluate("h => getComputedStyle(h).color") == "rgb(11, 46, 89)"
+    pg.close(); assert not errs, errs

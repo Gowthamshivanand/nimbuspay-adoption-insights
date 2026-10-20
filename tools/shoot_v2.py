@@ -13,7 +13,9 @@ def main(base, out):
     with sync_playwright() as p:
         b = p.chromium.launch(); pg = b.new_page(viewport={"width": 1440, "height": 900}); errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
-        shot = lambda n, full=True: pg.screenshot(path=os.path.join(out, n + ".png"), full_page=full)
+        def shot(n, full=True, top=True):   # let the 180 ms tab fade finish (wait 300 ms) and capture from the top
+            if top: pg.evaluate("window.scrollTo(0, 0)")
+            pg.wait_for_timeout(300); pg.screenshot(path=os.path.join(out, n + ".png"), full_page=full)
         pg.goto(base); pg.wait_for_selector("[data-testid=scen-baseline]"); shot("00-data")
         pg.click("[data-testid=scen-baseline]"); pg.wait_for_selector("[data-testid=outcome]")
         for i, (t, sel) in enumerate(TABS, 1):
@@ -24,16 +26,16 @@ def main(base, out):
                 pg.click("[data-testid=gq-1]"); pg.wait_for_selector("[data-testid=answer]")
                 pg.fill("[data-testid=ask-input]", "and Region B?"); pg.click("[data-testid=ask-btn]"); pg.wait_for_function("document.querySelectorAll('[data-testid=answer]').length>=2")
                 pg.click("[data-testid=gq-14]"); pg.wait_for_function("document.querySelectorAll('[data-testid=answer]').length>=3")
-            shot(f"{i:02d}-{t}", full=t != "agent")
-        pg.click("#tab-exec"); pg.click("[data-testid=kpi-M01]"); pg.wait_for_selector("[data-testid=lineage]"); pg.wait_for_timeout(300); shot("14-lineage-modal", False)
+            shot(f"{i:02d}-{t}")
+        pg.click("#tab-exec"); pg.click("[data-testid=kpi-M01]"); pg.wait_for_selector("[data-testid=lineage]"); shot("14-lineage-modal", False, top=False)
         pg.click("[data-testid=lin-close]")
-        pg.click("#tab-agent"); pg.locator("[data-testid=why-btn]").first.click(); pg.wait_for_selector("[data-testid=why-panel]"); pg.wait_for_timeout(300); shot("15-why-modal", False)
+        pg.click("#tab-agent"); pg.locator("[data-testid=why-btn]").first.click(); pg.wait_for_selector("[data-testid=why-panel]"); shot("15-why-modal", False, top=False)
         pg.click("[data-testid=why-close]")
         pg.click("#tab-data"); pg.click("[data-testid=scen-breach]"); pg.wait_for_selector("[data-testid=score] >> text=RED"); shot("16-breach-red")
         pg.click("#tab-data"); pg.click("[data-testid=scen-baseline]"); pg.wait_for_selector("[data-testid=outcome]")
         for n, (w, h) in {"17-mobile-exec": (390, 844), "18-tablet-agent": (834, 1112)}.items():
             m = b.new_page(viewport={"width": w, "height": h}); m.goto(base); m.wait_for_selector("[data-testid=scen-baseline]")
-            m.click("#tab-exec" if "exec" in n else "#tab-agent"); m.wait_for_timeout(400); m.screenshot(path=os.path.join(out, n + ".png"), full_page=False); m.close()
+            m.click("#tab-exec" if "exec" in n else "#tab-agent"); m.wait_for_timeout(500); m.screenshot(path=os.path.join(out, n + ".png"), full_page=False); m.close()
         pg.goto(base + "/legacy"); pg.wait_for_selector("[data-testid=scen-baseline]"); shot("19-legacy-fallback", False)
         b.close()
     print("page errors:", errs or "none")

@@ -7,9 +7,12 @@ import { Header } from "../components/ui";
 
 const SUGG = ["What is licence utilisation this month?", "How is licence utilisation defined?", "Compare habitual users across my markets", "How is the newest country doing since launch?", "Which connector has the highest failure rate this week?", "How many agents are unregistered?", "Why did licence utilisation drop in launch cohort 2?", "What is our AI value score?", "How many hours did AI save us this quarter?", "What is our cost per verified hour?", "What was agent error rate yesterday?", "Which fraud analysts use the assistant least?", "Show me the raw events for user USER-001", "List the card numbers in last week's fraud cases", "What is the active user count for a team of 3?", "Show utilisation for a market outside my region", "Did the onboarding agent cause faster onboarding?", "MAU doubled, so did AI value double?", "Why is our AI value score so low?", "What will utilisation be next quarter?", "Retire the onboarding agent for me", "What renewal outcome do you recommend?"];
 
+/* Default chips (0-based indexes into SUGG): Adoption Q01, Q03; Value Q08, Q09; Safety Q14, Q17. */
+const CHIP_GROUPS: [string, number[]][] = [["Adoption", [0, 2]], ["Value", [7, 8]], ["Safety", [13, 16]]];
+
 const brainText = (b: J) => b.kind === "ollama" ? "Open model: " + b.ollama_model + " (local, Ollama)"
   : (b.kind === "openai" || b.kind === "finetuned") ? b.label + (b.ft_chain ? " | order: " + b.ft_chain.order.join(" > ") : "")
-  : "Rules engine (open model not detected at " + b.ollama_host + ")";
+  : "Rules engine (open model offline)";   // v1 named the Ollama host here; it is in the tooltip now
 
 function Bubble({ m, i }: { m: ChatMsg; i: number }) {
   const { ask, why, redraw, chat } = useApp(); const b = m.bot;
@@ -55,17 +58,26 @@ function Bubble({ m, i }: { m: ChatMsg; i: number }) {
 
 export default function Agent() {
   const { personaLabel, chat, ask } = useApp();
-  const [brain, setBrain] = useState("checking...");
+  const [brain, setBrain] = useState("checking..."), [brainTip, setBrainTip] = useState("");
+  const [all, setAll] = useState(false);
   const box = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null);
-  useEffect(() => { C.getBrain().then((b) => setBrain(brainText(b))); }, []);
+  useEffect(() => { C.getBrain().then((b) => { setBrain(brainText(b)); setBrainTip(b.ollama_host ? "Open model host checked: " + b.ollama_host : ""); }); }, []);
   useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight; });
+  const chip = (i: number) => <button key={i} className="ghost" data-testid={`gq-${i + 1}`} onClick={() => ask(SUGG[i])}>{i < 21 ? "Q" + String(i + 1).padStart(2, "0") + " " : ""}{SUGG[i]}</button>;
   const submit = (e: FormEvent) => { e.preventDefault(); const q = input.current!.value.trim(); if (q) { ask(q); input.current!.value = ""; } };
   return (
     <>
       <Header title="Adoption Insights Agent">Read-only. Cites metric ID, version and data-as-of, shows the SQL it ran, and refuses unsafe asks with a safe alternative. Persona: {personaLabel}.</Header>
-      <div className="eyebrow mb-2">Golden questions</div>
-      <div className="chips">{SUGG.map((s, i) => <button key={i} className="ghost" data-testid={`gq-${i + 1}`} onClick={() => ask(s)}>{i < 21 ? "Q" + String(i + 1).padStart(2, "0") + " " : ""}{s}</button>)}</div>
-      <div className="tile !py-2.5 mt-4 mb-3 text-[13px]">Role: <b data-testid="role-now">{personaLabel}</b> | Brain: <b id="brain" data-testid="brain">{brain}</b> <span className="muted text-[12px]">Safety guards are always rules-based; the brain only picks a governed tool, numbers come from SQL.</span></div>
+      {/* 6 grouped golden questions by default; "Show all 22" lists every chip (same gq-N testids, same order as v1). */}
+      {all ? (
+        <div className="chips">{SUGG.map((_s, i) => chip(i))}</div>
+      ) : (
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
+          {CHIP_GROUPS.map(([g, idx]) => <div key={g}><div className="eyebrow mb-1.5">{g}</div><div className="chips">{idx.map((i) => chip(i))}</div></div>)}
+        </div>
+      )}
+      <button type="button" className="ghost mt-3 !text-[12px] !py-1" data-testid="gq-toggle" aria-expanded={all} onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : "Show all 22"}</button>
+      <div className="tile !py-2.5 mt-4 mb-3 text-[13px]">Role: <b data-testid="role-now">{personaLabel}</b> | Brain: <b id="brain" data-testid="brain" title={brainTip}>{brain}</b> <span className="muted text-[12px]">Safety guards are always rules-based; the brain only picks a governed tool, numbers come from SQL.</span></div>
       <div className="chat" id="chat" data-testid="chat" ref={box}>
         {chat.length ? chat.map((m, i) => m.me !== undefined
           ? <div key={i} className="msg me">{m.as ? <span className="text-[11px] text-[#D1D5DB]">asked as {m.as}: </span> : null}{m.me}</div>

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import * as C from "../api/client";
 import type { J } from "../lib/api";
 import { useApp } from "../lib/store";
-import { Header } from "../components/ui";
+import { FileField, Header } from "../components/ui";
 import PipelineSummary from "./Pipeline";
 
 export default function Data() {
@@ -26,7 +26,7 @@ export default function Data() {
             <div className="flex items-center justify-between gap-2"><b className="font-semibold">{s.label}</b>{s.key === ST.dataset ? <span className="eyebrow !text-accent">Loaded</span> : null}</div>
             <p className="muted text-[13px] mt-1 mb-3 flex-1">{s.note}</p>
             <div className="flex items-center gap-3 flex-wrap">
-              <button className="btn" data-testid={`scen-${s.key}`} onClick={() => load(s.key)}>Load</button>
+              <button className="ghost" data-testid={`scen-${s.key}`} onClick={() => load(s.key)}>Load</button>
               <span className="muted text-[12px]">CSV: <a href={C.sampleCsvUrl(s.key, "events.csv")}>events</a> <a href={C.sampleCsvUrl(s.key, "seats.csv")}>seats</a> <a href={C.sampleCsvUrl(s.key, "registry.csv")}>registry</a></span>
             </div>
           </div>
@@ -35,9 +35,9 @@ export default function Data() {
       <h2>Upload CSVs</h2>
       <form id="up" className="tile" onSubmit={upload}>
         <div className="grid-auto">
-          <label className="field">events.csv <input type="file" name="events" accept=".csv" required /></label>
-          <label className="field">seats.csv <input type="file" name="seats" accept=".csv" required /></label>
-          <label className="field">registry.csv <input type="file" name="registry" accept=".csv" required /></label>
+          <div className="field"><span>events.csv</span><FileField name="events" accept=".csv" label="Choose events.csv" /></div>
+          <div className="field"><span>seats.csv</span><FileField name="seats" accept=".csv" label="Choose seats.csv" /></div>
+          <div className="field"><span>registry.csv</span><FileField name="registry" accept=".csv" label="Choose registry.csv" /></div>
         </div>
         <div className="grid-auto mt-4">
           <label className="field">Verified hours / week (from study, optional) <input name="verified_hours_week" /></label>

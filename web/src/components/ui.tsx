@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 /* KPI tile. data-metric M\d\d opens "Explain this number" (handled by a document listener in App, as before). */
-export function Kpi({ id, label, val, sub = "" }: { id: string; label: string; val: ReactNode; sub?: string }) {
+export function Kpi({ id, label, val, sub = "", eyebrow }: { id: string; label: string; val: ReactNode; sub?: string; eyebrow?: string }) {
+  /* eyebrow: a plain grey label for tiles whose slot is not a metric ID (e.g. "Funnel check"); data-metric/testid unchanged. */
   return (
     <div className="kpi" data-metric={id} data-testid={`kpi-${id}`} title="Click: explain this number">
-      <div className="id">{id}</div>
+      <div className={eyebrow ? "eyebrow" : "id"}>{eyebrow ?? id}</div>
       <div className="v">{val}</div>
       <div className="l">{label}</div>
       {sub ? <div className="muted text-[12px] mt-0.5">{sub}</div> : <div className="muted text-[12px]"></div>}
@@ -46,5 +47,20 @@ export function Modal({ id, onClose, children, width = 740, testid }: { id: stri
         </div>
       </div>
     </div>
+  );
+}
+
+/* Styled file picker: the real <input type=file> stays in the form (same name, accept, required, testid) but is visually hidden. */
+export function FileField({ name, accept, label, testid, required = true }: { name: string; accept: string; label: string; testid?: string; required?: boolean }) {
+  const [file, setFile] = useState("");
+  return (
+    <span className="inline-flex items-center gap-2 min-w-0">
+      <label className="ghost cursor-pointer whitespace-nowrap focus-within:border-navy">
+        {label}
+        <input type="file" name={name} accept={accept} required={required} data-testid={testid} className="sr-only"
+          onChange={(e) => setFile(e.currentTarget.files && e.currentTarget.files[0] ? e.currentTarget.files[0].name : "")} />
+      </label>
+      <span className="muted text-[12px] truncate">{file || "No file yet"}</span>
+    </span>
   );
 }
