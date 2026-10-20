@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { api, type J } from "../lib/api";
+import * as C from "../api/client";
+import type { J } from "../lib/api";
 import { useApp } from "../lib/store";
 import { Header } from "../components/ui";
 
@@ -22,18 +23,18 @@ export default function Models() {
   const [M, setM] = useState<J>(null), [b, setB] = useState<J>(null), [msg, setMsg] = useState("");
   const alive = useRef(true);
   const load = useCallback(async () => {
-    api("/api/brain").then(setB).catch(() => {});
-    const m = await api("/api/models"); if (!alive.current) return; setM(m);
+    C.getBrain().then(setB).catch(() => {});
+    const m = await C.getModels(); if (!alive.current) return; setM(m);
     if (m.brains.some((x: J) => x.run.state === "running")) setTimeout(() => alive.current && tabRef.current === "models" && load(), 3000);
   }, []);
   useEffect(() => { alive.current = true; load(); return () => { alive.current = false; }; }, [load]);
   const runBrain = async (k: string) => {
-    try { await api("/api/models/run/" + k, { method: "POST" }); } catch (e) { alert((e as Error).message); }
+    try { await C.runModel(k); } catch (e) { alert((e as Error).message); }
     setTimeout(() => alive.current && tabRef.current === "models" && load(), 1500);
   };
   const upload = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    try { await api("/api/models/upload", { method: "POST", body: new FormData(e.currentTarget) }); setMsg(""); load(); } catch (x) { setMsg("Rejected: " + (x as Error).message); }
+    try { await C.uploadModelEval(new FormData(e.currentTarget)); setMsg(""); load(); } catch (x) { setMsg("Rejected: " + (x as Error).message); }
   };
   const c = b && b.ft_chain, rm = c && c.remote;
   return (

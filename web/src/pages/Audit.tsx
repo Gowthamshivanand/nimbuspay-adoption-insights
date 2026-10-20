@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { api, type J } from "../lib/api";
+import * as C from "../api/client";
+import type { J } from "../lib/api";
 import { Header } from "../components/ui";
 
 /* Every cell is rendered as text (React escapes), so a hostile persona string never runs. */
 export default function Audit() {
   const [A, setA] = useState<J[] | null>(null);
-  useEffect(() => { api("/api/audit").then(setA); }, []);
+  useEffect(() => { C.getAudit().then(setA); }, []);
   if (!A) return null;
   return (
     <>

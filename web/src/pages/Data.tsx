@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { api, type J } from "../lib/api";
+import * as C from "../api/client";
+import type { J } from "../lib/api";
 import { useApp } from "../lib/store";
 import { Header } from "../components/ui";
 import PipelineSummary from "./Pipeline";
@@ -8,12 +9,12 @@ export default function Data() {
   const { ST, setST, SCEN, show, tab, clearChat } = useApp();
   const [msg, setMsg] = useState("");
   const load = async (k: string) => {
-    try { const s = await api("/api/load/" + k, { method: "POST" }); setST(s); clearChat(); show(tab === "data" ? "exec" : tab); }
+    try { const s = await C.loadScenario(k); setST(s); clearChat(); show(tab === "data" ? "exec" : tab); }
     catch (e) { console.error(e); }                 // legacy: no UI message (e.g. 403 on the read-only public Space)
   };
   const upload = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    try { const s = await api("/api/upload", { method: "POST", body: new FormData(e.currentTarget) }); setST(s); show("exec"); }
+    try { const s = await C.uploadCsvs(new FormData(e.currentTarget)); setST(s); show("exec"); }
     catch (x) { setMsg("Rejected: " + (x as Error).message); }
   };
   return (
@@ -26,7 +27,7 @@ export default function Data() {
             <p className="muted text-[13px] mt-1 mb-3 flex-1">{s.note}</p>
             <div className="flex items-center gap-3 flex-wrap">
               <button className="btn" data-testid={`scen-${s.key}`} onClick={() => load(s.key)}>Load</button>
-              <span className="muted text-[12px]">CSV: <a href={`/api/sample/${s.key}/events.csv`}>events</a> <a href={`/api/sample/${s.key}/seats.csv`}>seats</a> <a href={`/api/sample/${s.key}/registry.csv`}>registry</a></span>
+              <span className="muted text-[12px]">CSV: <a href={C.sampleCsvUrl(s.key, "events.csv")}>events</a> <a href={C.sampleCsvUrl(s.key, "seats.csv")}>seats</a> <a href={C.sampleCsvUrl(s.key, "registry.csv")}>registry</a></span>
             </div>
           </div>
         ))}

@@ -1,23 +1,25 @@
 /* NimbusPay Adoption Insights UI (v2). Talks to the same FastAPI backend as the legacy UI; all data synthetic.
    Behaviour is a 1:1 port of app/static/app.js: same tabs, controls, requests, numbers and data-testids. */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type J } from "./lib/api";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import * as C from "./api/client";
+import type { J } from "./lib/api";
 import { AppCtx, GROUPS, TABS, type ChatMsg, type Ctx, type Tab } from "./lib/store";
 import { LineageModal, WhyModal } from "./components/Explain";
 import { ROLES, cap } from "./lib/format";
-import Data from "./screens/Data";
-import Exec from "./screens/Exec";
-import WhatIf from "./screens/WhatIf";
-import Seats from "./screens/Seats";
-import Region from "./screens/Region";
-import Eng from "./screens/Eng";
-import Agent from "./screens/Agent";
-import Alerts from "./screens/Alerts";
-import Compare from "./screens/Compare";
-import Pack from "./screens/Pack";
-import Audit from "./screens/Audit";
-import Cost from "./screens/Cost";
-import Models from "./screens/Models";
+import Data from "./pages/Data";
+import Exec from "./pages/Exec";
+import WhatIf from "./pages/WhatIf";
+import Seats from "./pages/Seats";
+import Region from "./pages/Region";
+import Eng from "./pages/Eng";
+import Agent from "./pages/Agent";
+import Alerts from "./pages/Alerts";
+import Compare from "./pages/Compare";
+import Pack from "./pages/Pack";
+import Audit from "./pages/Audit";
+import Cost from "./pages/Cost";
+import Models from "./pages/Models";
 
 const SCREENS: Record<Tab, () => JSX.Element | null> = { data: Data, exec: Exec, whatif: WhatIf, seats: Seats, region: Region, eng: Eng, agent: Agent, alerts: Alerts, compare: Compare, pack: Pack, audit: Audit, cost: Cost, models: Models };
 const LABEL = Object.fromEntries(TABS) as Record<Tab, string>;
@@ -28,8 +30,8 @@ export default function App() {
   const [persona, setPersonaRaw] = useState("");
   const [SCEN, setSCEN] = useState<J[]>([]);
   const [ST, setST] = useState<J>(null);
-  const [tab, setTab] = useState<Tab>("data");
-  const [nonce, setNonce] = useState(0);              // every show() re-renders the screen (legacy re-ran R[t]())
+  const nav = useNavigate(), loc = useLocation();
+  const tab = ((loc.pathname.slice(1) || "data") in SCREENS ? (loc.pathname.slice(1) || "data") : "data") as Tab;
   const [, setV] = useState(0);
   const chatRef = useRef<ChatMsg[]>([]);
   const tabRef = useRef<Tab>("data"), personaRef = useRef(""), stRef = useRef<J>(null);
@@ -37,21 +39,23 @@ export default function App() {
   const [whyM, setWhyM] = useState<{ m: ChatMsg; L: (J | null)[] } | null>(null);
 
   const redraw = useCallback(() => setV((v) => v + 1), []);
-  const show = useCallback((t: Tab) => { tabRef.current = t; setTab(t); setNonce((n) => n + 1); }, []);
+  /* Every show() is a new navigation (new location.key), so the page re-mounts and re-fetches, exactly as v1 re-ran R[t](). */
+  const navRef = useRef(nav); navRef.current = nav;     // useNavigate changes identity per location; keep show() stable
+  const show = useCallback((t: Tab) => { tabRef.current = t; navRef.current("/" + t); }, []);
   const setPersona = useCallback((p: string) => { personaRef.current = p; setPersonaRaw(p); }, []);
   const setSTx = useCallback((s: J) => { stRef.current = s; setST(s); }, []);
 
   useEffect(() => {
     (async () => {
-      const ps = await api("/api/personas");
+      const ps = await C.getPersonas();
       setPersonas(ps); setPersona(Object.keys(ps)[0] || "");
-      setSCEN(await api("/api/scenarios")); setSTx(await api("/api/state")); show("data");
+      setSCEN(await C.getScenarios()); setSTx(await C.getState()); show("data");
     })();
   }, [setPersona, setSTx, show]);
 
   /* Explain this number: any [data-metric=M\d\d] click, anywhere (KPI tiles). */
   const explain = useCallback(async (mid: string) => {
-    let L; try { L = await api("/api/lineage/" + mid); } catch { return; }
+    let L; try { L = await C.getLineage(mid); } catch { return; }
     setLin(L);
   }, []);
   useEffect(() => {
@@ -61,7 +65,7 @@ export default function App() {
 
   const why = useCallback(async (m: ChatMsg) => {
     const b = m.bot, ids = [...new Set<string>((b.citations || []).map((c: J) => c.metric))];
-    const L = await Promise.all(ids.map((id) => (/^M\d\d$/.test(id) ? api("/api/lineage/" + id).catch(() => null) : Promise.resolve(null))));
+    const L = await Promise.all(ids.map((id) => (/^M\d\d$/.test(id) ? C.getLineage(id).catch(() => null) : Promise.resolve(null))));
     setWhyM({ m, L });
   }, []);
 
@@ -72,9 +76,9 @@ export default function App() {
     CHAT.push({ me: q, as: persona !== personaRef.current ? persona : null });
     const m: ChatMsg = { bot: { type: "answer", text: "", citations: [], mode: "...", data_as_of: ST.data_as_of }, streaming: true, q, persona };
     CHAT.push(m); redraw();
-    const body = JSON.stringify({ question: q, persona, session_id: SID });
+    const body = { question: q, persona, session_id: SID };
     try {
-      const res = await fetch("/api/ask/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+      const res = await C.askStream(body);
       if (!res.ok || !res.body) throw new Error("no stream");
       const rd = res.body.getReader(), dec = new TextDecoder(); let buf = "", done: J = null;
       for (;;) {
@@ -91,7 +95,7 @@ export default function App() {
       if (!done) throw new Error("stream ended early");
       m.bot = done;
     } catch {
-      try { m.bot = await api("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body }); }
+      try { m.bot = await C.ask(body); }
       catch (e2) {
         m.bot = { type: "caveat", intent: "error", error: true, mode: "error", brain: "rules", citations: [], data_as_of: ST.data_as_of,
           text: "The service didn't answer (" + ((e2 as Error).message || "network error") + "), so there is no answer and no number to show. Please ask again; if it repeats, restart the app." };
@@ -106,7 +110,6 @@ export default function App() {
     chat: chatRef.current, redraw, clearChat: () => { chatRef.current.length = 0; }, ask, explain, why,
   }), [ST, setSTx, SCEN, tab, show, persona, personaLabel, personas, setPersona, redraw, ask, explain, why]);
 
-  const Screen = SCREENS[tab];
   return (
     <AppCtx.Provider value={ctx}>
       <div className="min-h-screen flex flex-col">
@@ -146,7 +149,12 @@ export default function App() {
             ))}
           </nav>
           <main id="view" className="flex-1 min-w-0 px-6 lg:px-10 py-8 max-w-[1200px]">
-            {ST && personas ? <div className="screen" key={tab + ":" + nonce + (tab === "agent" ? ":" + persona : "")}><Screen /></div> : null}
+            {ST && personas ? (
+              <Routes>
+                {TABS.map(([k]) => { const Page = SCREENS[k]; return <Route key={k} path={"/" + k} element={<div className="screen" key={loc.key + (k === "agent" ? ":" + persona : "")}><Page /></div>} />; })}
+                <Route path="*" element={<Navigate to="/data" replace />} />
+              </Routes>
+            ) : null}
           </main>
         </div>
         <footer className="muted px-6 py-5 text-[12px] text-center border-t border-line">Read-only. Every number is synthetic and labelled; thresholds and weights are placeholders to agree. Metric version <span id="ver">v1.0</span>. Built by Gowtham S.</footer>

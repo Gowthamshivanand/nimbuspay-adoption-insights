@@ -1,14 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { api, type J } from "../lib/api";
+import * as C from "../api/client";
+import type { J } from "../lib/api";
 import { Header, Kpi } from "../components/ui";
 
 export default function Seats() {
   const [r, setR] = useState<J>(null), [x, setX] = useState<J>(null), [msg, setMsg] = useState("");
-  useEffect(() => { api("/api/reclaim").then(setR); }, []);
+  useEffect(() => { C.getReclaim().then(setR); }, []);
   if (!r) return null;
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    try { setX(await api("/api/reconcile", { method: "POST", body: new FormData(e.currentTarget) })); } catch (y) { setMsg("Rejected: " + (y as Error).message); }
+    try { setX(await C.reconcile(new FormData(e.currentTarget))); } catch (y) { setMsg("Rejected: " + (y as Error).message); }
   };
   return (
     <>
@@ -27,10 +28,10 @@ export default function Seats() {
         </table>
       </div>
       <h2>Vendor bill reconciler</h2>
-      <p className="lede mb-3">Upload the vendor's invoice CSV (invoice_id, team_id, billed_seats, optional unit_price) to compare billed vs purchased vs assigned vs active seats. <a href="/api/reconcile/sample.csv">Download the sample invoice</a>.</p>
+      <p className="lede mb-3">Upload the vendor's invoice CSV (invoice_id, team_id, billed_seats, optional unit_price) to compare billed vs purchased vs assigned vs active seats. <a href={C.reconcileSampleCsvUrl}>Download the sample invoice</a>.</p>
       <form id="invf" className="tile flex items-center gap-3 flex-wrap" onSubmit={submit}>
         <input type="file" name="invoice" accept=".csv" required /><button className="btn">Reconcile</button>
-        <button type="button" className="ghost" data-testid="inv-sample" id="inv-sample" onClick={async () => setX(await api("/api/reconcile/sample"))}>Use sample invoice</button>
+        <button type="button" className="ghost" data-testid="inv-sample" id="inv-sample" onClick={async () => setX(await C.reconcileSample())}>Use sample invoice</button>
         <span id="invmsg" className="muted">{msg}</span>
       </form>
       <div id="inv-out" className="mt-4">

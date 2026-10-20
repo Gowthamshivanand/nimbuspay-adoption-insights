@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, postJson, type J } from "../lib/api";
+import * as C from "../api/client";
+import type { J } from "../lib/api";
 import { money } from "../lib/format";
 import { Header } from "../components/ui";
 
@@ -9,10 +10,10 @@ export default function Cost() {
   const run = useCallback(async () => {
     setRulesV(f.rules.current!.value + "%");
     const body = { users: +f.users.current!.value, queries_per_user_day: +f.qpud.current!.value, rules_share: +f.rules.current!.value / 100, model: f.model.current!.value, tokens_in: +f.tin.current!.value, tokens_out: +f.tout.current!.value };
-    try { setR(await postJson("/api/cost", body)); setErr(""); } catch (e) { setErr((e as Error).message); }
+    try { setR(await C.calcCost(body)); setErr(""); } catch (e) { setErr((e as Error).message); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { api("/api/cost").then(setM); }, []);
+  useEffect(() => { C.getCostMeta().then(setM); }, []);
   useEffect(() => { if (M) run(); }, [M, run]);
   if (!M) return null;
   const d = M.defaults;

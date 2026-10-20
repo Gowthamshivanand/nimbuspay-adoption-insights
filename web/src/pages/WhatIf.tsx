@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { postJson, type J } from "../lib/api";
+import * as C from "../api/client";
+import type { J } from "../lib/api";
 import { useApp } from "../lib/store";
 import { fmt, oc } from "../lib/format";
 import { Bars, Header } from "../components/ui";
@@ -12,7 +13,7 @@ export default function WhatIf() {
   const [w, setW] = useState<J>(null);
   const run = async () => {
     const body = { seats: +seats.current!.value, connector_fix: conn.current!.checked, id_coverage: idsV !== null ? +ids.current!.value : null };
-    setW(await postJson("/api/whatif", body));
+    setW(await C.whatIf(body));
   };
   const col = (t: string, x: J) => (
     <div className="tile">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { api, postJson, type J } from "../lib/api";
+import * as C from "../api/client";
+import type { J } from "../lib/api";
 import { useApp, type ChatMsg } from "../lib/store";
 import { BRAIN, ROLES, TYPE, cap } from "../lib/format";
 import { Header } from "../components/ui";
@@ -14,7 +15,7 @@ function Bubble({ m, i }: { m: ChatMsg; i: number }) {
   const { ask, why, redraw, chat } = useApp(); const b = m.bot;
   const fb = (rating: string) => {
     if (m.fb) return;
-    postJson("/api/feedback", { question: m.q, answer: b.text, rating, brain: b.brain || "", mode: b.mode || "", intent: b.intent || "", type: b.type || "", persona: b.persona || m.persona })
+    C.sendFeedback({ question: m.q as string, answer: b.text, rating, brain: b.brain || "", mode: b.mode || "", intent: b.intent || "", type: b.type || "", persona: b.persona || m.persona })
       .then(() => { m.fb = rating; redraw(); }).catch((x) => { m.fbErr = x.message; redraw(); });
   };
   const cites = b.citations || [];
@@ -56,7 +57,7 @@ export default function Agent() {
   const { personaLabel, chat, ask } = useApp();
   const [brain, setBrain] = useState("checking...");
   const box = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null);
-  useEffect(() => { api("/api/brain").then((b) => setBrain(brainText(b))); }, []);
+  useEffect(() => { C.getBrain().then((b) => setBrain(brainText(b))); }, []);
   useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight; });
   const submit = (e: FormEvent) => { e.preventDefault(); const q = input.current!.value.trim(); if (q) { ask(q); input.current!.value = ""; } };
   return (
