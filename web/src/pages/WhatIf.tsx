@@ -10,10 +10,12 @@ export default function WhatIf() {
   const { ST, show } = useApp(); const f = ST.funnel;
   const seats = useRef<HTMLInputElement>(null), ids = useRef<HTMLInputElement>(null), conn = useRef<HTMLInputElement>(null);
   const [seatsV, setSeatsV] = useState(String(f.LF1)), [idsV, setIdsV] = useState<string | null>(null);
-  const [w, setW] = useState<J>(null);
+  const [w, setW] = useState<J>(null), [liveMsg, setLiveMsg] = useState("");
   const run = async () => {
     const body = { seats: +seats.current!.value, connector_fix: conn.current!.checked, id_coverage: idsV !== null ? +ids.current!.value : null };
-    setW(await C.whatIf(body));
+    if (!C.STATIC) { setW(await C.whatIf(body)); return; }
+    /* Static demo only: a combination that was not recorded shows the "live in the full app" note instead of an error. */
+    try { setW(await C.whatIf(body)); setLiveMsg(""); } catch (e) { setW(null); setLiveMsg((e as Error).message); }
   };
   const col = (t: string, x: J) => (
     <div className="tile">
@@ -45,6 +47,7 @@ export default function WhatIf() {
         <p className="mt-4 flex gap-2"><button className="btn" data-testid="w-run" id="w-run" onClick={run}>Simulate</button> <button className="ghost" id="w-reset" onClick={() => show("whatif")}>Reset</button></p>
       </div>
       <div id="w-out" className="mt-4">
+        {liveMsg ? <p className="muted mt-4 text-[13px]" data-testid="w-live">{liveMsg} Recorded combinations: 20 seats with nothing else changed, or 25 seats with connector failures fixed and ID coverage at 60%.</p> : null}
         {w ? <><div className="grid gap-3" data-testid="w-result" style={{ gridTemplateColumns: "1fr 1fr" }}>{col("Today", w.before)}{col("What-if", w.after)}</div><p className="muted mt-3 text-[13px]">{w.label}</p></> : null}
       </div>
     </>
