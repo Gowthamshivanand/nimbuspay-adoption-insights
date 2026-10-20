@@ -1,6 +1,6 @@
 import type { J } from "../lib/api";
 import { useApp } from "../lib/store";
-import { fmt, oc } from "../lib/format";
+import { fmt, keepTogether, oc } from "../lib/format";
 import { Bars, Header, Kpi } from "../components/ui";
 
 const EV: Record<string, string> = { e1: "Utilisation", e2: "Verified impact", e3: "Unit economics", e4: "Reliability and governance" };
@@ -16,7 +16,7 @@ export default function Exec() {
       <div className="outcard">
         <div className="eyebrow">Renewal recommendation</div>
         <div className={`out mt-1 ${oc(rn.outcome)}`} data-testid="outcome">{rn.outcome}</div>
-        <div className="mt-1 max-w-[820px]">{rn.why}</div>
+        <div className="mt-1 max-w-[820px]">{keepTogether(rn.why)}</div>
         <div className="grid-auto mt-4">
           {Object.entries(EV).map(([k, l]) => {
             const v = rn.evidence[k] === "met" && k === "e2";

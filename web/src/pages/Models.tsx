@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import * as C from "../api/client";
 import type { J } from "../lib/api";
 import { useApp } from "../lib/store";
-import { Header } from "../components/ui";
-import { fmtTs, hideHosts } from "../lib/format";
+import { FileField, Header } from "../components/ui";
+import { capFirst, fmtTs, hideHosts } from "../lib/format";
 
 const sc = (x: J) => (x ? `${x.passed}/${x.total}` : "-");
 const ms = (v: J) => (v === null || v === undefined ? "-" : v + " ms");
@@ -14,7 +14,7 @@ function Row({ name, st, r, extra }: { name: string; st: string; r: J; extra: st
   return (
     <tr data-testid={`mrow-${st}`}>{head}<td>{sc(r.golden)}</td><td>{sc(r.panel24)}</td><td>{sc(r.extra)}</td>
       <td className={r.unsafe_answers ? "red" : "ok"}>{r.unsafe_answers} / {r.should_refuse}</td><td>{r.faithfulness_pct ?? "-"}%</td>
-      <td>{ms(r.latency_ms.p50)}</td><td>{ms(r.latency_ms.p95)}</td><td>{r.gate_pass ? <span className="ok">pass</span> : <span className="red">fail</span>}</td></tr>
+      <td className="whitespace-nowrap tabular-nums">{ms(r.latency_ms.p50)}</td><td className="whitespace-nowrap tabular-nums">{ms(r.latency_ms.p95)}</td><td>{r.gate_pass ? <span className="ok">pass</span> : <span className="red">fail</span>}</td></tr>
   );
 }
 
@@ -63,8 +63,8 @@ export default function Models() {
             <table data-testid="models">
               <tbody>
                 <tr><th>Brain</th><th>Golden 21</th><th>Panel 24</th><th>Extra 40</th><th>Unsafe answers</th><th>Number faithfulness</th><th>p50</th><th>p95</th><th>Release gate</th></tr>
-                {M.brains.map((x: J) => <Row key={x.key} name={x.label} st={x.key} r={x.result} extra={(x.result ? `${x.result.brain.label}. Run ${fmtTs(x.result.generated_at)}. ` : "") + x.reason + (x.note ? ". " + x.note : "") + (x.run.state === "running" ? ". Running now..." : "")} />)}
-                {M.uploaded.map((u: J, i: number) => <Row key={"up" + i} name={u.brain.label || u.requested_brain} st={"up-" + i} r={u} extra={u.source + ", run " + (u.generated_at ? fmtTs(u.generated_at) : "?")} />)}
+                {M.brains.map((x: J) => <Row key={x.key} name={x.label} st={x.key} r={x.result} extra={[x.result ? x.result.brain.label : "", x.result ? "Run " + fmtTs(x.result.generated_at) : "", capFirst(x.reason), x.note ? capFirst(x.note) : "", x.run.state === "running" ? "Running now..." : ""].filter(Boolean).join(" \u00b7 ")} />)}
+                {M.uploaded.map((u: J, i: number) => <Row key={"up" + i} name={u.brain.label || u.requested_brain} st={"up-" + i} r={u} extra={u.source + " \u00b7 Run " + (u.generated_at ? fmtTs(u.generated_at) : "?")} />)}
               </tbody>
             </table>
           </div>
@@ -73,16 +73,16 @@ export default function Models() {
           </p>
           <form id="mupf" className="tile flex items-center gap-3 flex-wrap mt-4" onSubmit={upload}>
             <span>Load a saved eval (<code>python tools/eval_agent.py --brain ollama --save eval.json</code>):</span>
-            <input type="file" name="file" accept=".json" data-testid="m-upload" required /><button className="btn">Load</button><span id="mupmsg" className="muted">{msg}</span>
+            <FileField name="file" accept=".json" label="Choose eval.json" testid="m-upload" /><button className="ghost">Load</button><span id="mupmsg" className="muted">{msg}</span>
           </form>
           <h2>What the columns mean</h2>
           <div className="tile !p-0 overflow-auto"><table><tbody>
             <tr><td>Golden 21</td><td className="muted">The 21 golden questions of the agent test (answer, caveat or refuse exactly as agreed).</td></tr>
             <tr><td>Panel 24</td><td className="muted">24 unscripted probes: 17 the agent should answer and 7 it should refuse.</td></tr>
             <tr><td>Extra 40</td><td className="muted">40 further unscripted probes: 17 to answer and 23 to refuse.</td></tr>
-            <tr><td>Unsafe answers</td><td className="muted">{M.metrics_help.unsafe_answers}</td></tr>
-            <tr><td>Number faithfulness</td><td className="muted">{M.metrics_help.faithfulness_pct}</td></tr>
-            <tr><td>p50 / p95</td><td className="muted">{M.metrics_help.latency_ms}</td></tr>
+            <tr><td>Unsafe answers</td><td className="muted">{capFirst(M.metrics_help.unsafe_answers)}</td></tr>
+            <tr><td>Number faithfulness</td><td className="muted">{capFirst(M.metrics_help.faithfulness_pct)}</td></tr>
+            <tr><td>p50 / p95</td><td className="muted">{capFirst(M.metrics_help.latency_ms)}</td></tr>
           </tbody></table></div>
         </>
       )}

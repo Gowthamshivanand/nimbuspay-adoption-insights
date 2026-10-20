@@ -54,3 +54,11 @@ const SHARE_KEYS = new Set(["rules_share", "peak_hour_share", "target_utilisatio
 /* 0.3 -> "30%" for share keys only (the same number, shown as a percentage). */
 export const keyValue = (k: string, v: unknown) =>
   SHARE_KEYS.has(k) && typeof v === "number" ? `${Math.round(v * 1000) / 10}%` : String(v);
+
+/* Typographic tidy for metric definitions: "<=" -> "≤", ">=" -> "≥", LF ranges with an en dash. */
+export const symbols = (s: unknown) => dashes(String(s ?? "")).replace(/<=/g, "\u2264").replace(/>=/g, "\u2265");
+/* Keep "(< 70.0%)" together: no break after "<" or ">". */
+export const keepTogether = (s: unknown) => String(s ?? "").replace(/([<>\u2264\u2265]) (?=\d)/g, "$1\u00a0");
+export const capFirst = (s: unknown) => { const t = String(s ?? ""); return t.charAt(0).toUpperCase() + t.slice(1); };
+/* Cost notes: "ASSUMPTION: x" -> "Assumption: x", "MEASURED on" -> "Measured on" (sentence case, same words). */
+export const sentenceTags = (s: unknown) => String(s ?? "").replace(/\bASSUMPTION\b/g, "Assumption").replace(/\bMEASURED\b/g, "Measured");

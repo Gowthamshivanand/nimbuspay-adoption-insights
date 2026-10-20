@@ -1,24 +1,24 @@
 /* "Explain this number" (metric lineage) and "Why this number?" (per-answer provenance). Content as in the legacy UI. */
 import type { J } from "../lib/api";
 import type { ChatMsg } from "../lib/store";
-import { BRAIN } from "../lib/format";
+import { BRAIN, symbols } from "../lib/format";
 import { Modal } from "./ui";
 
 export function LineageModal({ L, onClose }: { L: J; onClose: () => void }) {
   return (
     <Modal id="lin" onClose={onClose} width={740} testid="lineage">
-      <h2 className="!mt-0 !text-[18px]">Explain this number: {L.metric} {L.name} = {L.value ?? "withheld"}{L.unit === "%" ? "%" : ""}</h2>
+      <h2 className="!mt-0 !text-[18px]">Explain this number: {L.metric} {symbols(L.name)} = {L.value ?? "withheld"}{L.unit === "%" ? "%" : ""}</h2>
       <table>
         <tbody>
           <tr><th>Version</th><td>{L.version}{L.approximate ? " (approximate)" : ""}</td></tr>
-          <tr><th>Formula</th><td>{L.formula}</td></tr>
+          <tr><th>Formula</th><td>{symbols(L.formula)}</td></tr>
           <tr><th>Owner</th><td>{L.owner} (proposed role: {L.proposed_owner_role})</td></tr>
           <tr><th>Freshness</th><td>Data as of {L.freshness.data_as_of}; {L.freshness.late_events} late events; {L.freshness.after_close_rows} rows after close (restatement)</td></tr>
-          <tr><th>Source tables</th><td>{L.sources.map((s: string, i: number) => <div key={i}>{s}</div>)}</td></tr>
-          <tr><th>Pipeline</th><td>{L.pipeline.join(" \u2192 ")}</td></tr>
-          <tr><th>Missing-data rule</th><td>{L.missing_data_rule}</td></tr>
-          <tr><th>Tests</th><td>{L.tests}</td></tr>
-          <tr><th>Note</th><td>{L.note}</td></tr>
+          <tr><th>Source tables</th><td>{L.sources.map((s: string, i: number) => <div key={i}>{symbols(s)}</div>)}</td></tr>
+          <tr><th>Pipeline</th><td>{L.pipeline.map(symbols).join(" \u2192 ")}</td></tr>
+          <tr><th>Missing-data rule</th><td>{symbols(L.missing_data_rule)}</td></tr>
+          <tr><th>Tests</th><td>{symbols(L.tests)}</td></tr>
+          <tr><th>Note</th><td>{symbols(L.note)}</td></tr>
         </tbody>
       </table>
       {L.sql ? (
@@ -53,7 +53,7 @@ export function WhyModal({ m, L, ST, onClose }: { m: ChatMsg; L: (J | null)[]; S
               <tr key={id}>
                 <td><b>{id}</b> {l ? l.version : (b.citations.find((c: J) => c.metric === id) || {}).version}</td>
                 <td>{l ? l.name : mm ? mm.label : "Licence funnel stage"}</td>
-                <td>{l ? l.formula : mm ? mm.note : "Seat funnel stage LF1–LF6 from the seats and events tables"}</td>
+                <td>{symbols(l ? l.formula : mm ? mm.note : "Seat funnel stage LF1–LF6 from the seats and events tables")}</td>
                 <td className="muted">{l ? l.owner : ""}</td>
               </tr>
             );

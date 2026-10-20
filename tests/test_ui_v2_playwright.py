@@ -88,4 +88,8 @@ def test_v2_controls_keep_v1_behaviour(server, browser):
     fr = pg.frame_locator("[data-testid=pack-frame]")
     assert fr.locator("button").evaluate("b => getComputedStyle(b).display") == "none"
     assert fr.locator("h1").evaluate("h => getComputedStyle(h).color") == "rgb(11, 46, 89)"
+    assert "SYNTHETIC DATA: illustrative" in fr.locator("body").inner_text()          # display-only copy tidy
+    pg.click("#tab-exec"); pg.click("[data-testid=kpi-M01]"); pg.wait_for_selector("[data-testid=lineage]")
+    lt = pg.inner_text("[data-testid=lineage]"); assert "SELECT" in lt and "69.6" in lt and "<=" not in lt   # SQL untouched, prose tidied
+    pg.click("[data-testid=lin-close]")
     pg.close(); assert not errs, errs

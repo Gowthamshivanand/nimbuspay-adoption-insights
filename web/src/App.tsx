@@ -125,19 +125,19 @@ export default function App() {
             {/* One role control: four segments plus "More roles" for the other personas. Same testids and behaviour as v1. */}
             <div className="roles flex items-center gap-2 min-w-0 max-w-full" data-testid="role-switch" title="Role switch: scope is enforced on the server, the UI only sends the role name">
               <span className="eyebrow max-sm:hidden">Role</span>
-              <div className="inline-flex items-center rounded-control border border-lineStrong p-0.5 bg-surface max-w-full overflow-x-auto">
+              <div className="inline-flex items-center gap-0.5 rounded-control border border-lineStrong p-0.5 bg-surface max-w-full overflow-x-auto">
                 {SEGMENTS.map((r) => (
                   <button key={r} type="button" data-role={r} data-testid={`role-${r}`} onClick={() => setPersona(r)} aria-pressed={persona === r}
-                    className={`role px-2 sm:px-3 py-1 rounded-[6px] text-[12px] sm:text-[13px] whitespace-nowrap transition-colors duration-fast ${persona === r ? (r === "guest" ? "on bg-critical text-white font-semibold" : "on bg-navy text-white font-semibold") : "text-ink hover:bg-canvas"}`}>{cap(r)}</button>
+                    className={`role px-2 sm:px-3 py-1 min-h-[44px] sm:min-h-0 rounded-[6px] text-[12px] sm:text-[13px] whitespace-nowrap transition-colors duration-fast ${persona === r ? (r === "guest" ? "on bg-critical text-white font-semibold" : "on bg-navy text-white font-semibold") : "text-ink hover:bg-canvas"}`}>{cap(r)}</button>
                 ))}
                 <select id="persona" data-testid="persona" aria-label="More roles" value={SEGMENTS.includes(persona) ? "" : persona} onChange={(e) => e.target.value && setPersona(e.target.value)}
-                  className={`!border-0 !rounded-[6px] !py-1 !pl-3 !pr-7 text-[12px] sm:text-[13px] max-w-[124px] sm:max-w-[190px] ${SEGMENTS.includes(persona) ? "!bg-transparent text-ink" : "on !bg-navy !text-white font-semibold"}`}>
+                  className={`min-h-[44px] sm:min-h-0 !border-0 !rounded-[6px] !py-1 !pl-3 !pr-7 text-[12px] sm:text-[13px] max-w-[124px] sm:max-w-[190px] ${SEGMENTS.includes(persona) ? "!bg-transparent text-ink" : "on !bg-navy !text-white font-semibold"}`}>
                   <option value="" disabled>More roles</option>
                   {personas && Object.entries(personas).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
             </div>
-            <span id="ds" className="muted text-[12px]">{ST ? <><span className="whitespace-nowrap">Dataset: {ST.dataset_label}</span> | <span className="whitespace-nowrap">data as of {ST.data_as_of}</span></> : ""}</span>
+            <span id="ds" className="muted text-[12px]">{ST ? <><span className="whitespace-nowrap max-sm:block">Dataset: {ST.dataset_label}</span><span className="max-sm:hidden"> | </span><span className="whitespace-nowrap max-sm:block">data as of {ST.data_as_of}</span></> : ""}</span>
           </div>
         </header>
         <div className="flex flex-1 flex-col lg:flex-row">

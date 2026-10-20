@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import * as C from "../api/client";
 import type { J } from "../lib/api";
 import { useApp } from "../lib/store";
-import { fmt, oc } from "../lib/format";
+import { fmt, keepTogether, oc } from "../lib/format";
 import { Bars, Header } from "../components/ui";
 
 /* Inputs are uncontrolled (read at Simulate time) exactly like the legacy DOM version. */
@@ -19,9 +19,14 @@ export default function WhatIf() {
     <div className="tile">
       <div className="eyebrow">{t}</div>
       <div className={`out mt-1 ${oc(x.outcome)}`}>{x.outcome}</div>
-      <div className="muted text-[13px] mt-1">{x.why}</div>
-      <p className="mt-3 text-[13px]">M01 {fmt(x.M01, "%")} | M11 {fmt(x.M11, "%")} | exact {x.exact_share}% | paid seats unused {x.paid_unused}</p>
-      <p className="mt-1 text-[13px]">M19: <b className={x.score_state === "red" ? "red" : ""}>{x.score ?? "withheld (interim " + x.interim + ")"}</b></p>
+      <div className="muted text-[13px] mt-1">{keepTogether(x.why)}</div>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-[13px] max-w-[320px]">
+        <dt className="muted">M01</dt><dd className="tabular-nums">{fmt(x.M01, "%")}</dd>
+        <dt className="muted">M11</dt><dd className="tabular-nums">{fmt(x.M11, "%")}</dd>
+        <dt className="muted">Exact share</dt><dd className="tabular-nums">{x.exact_share}%</dd>
+        <dt className="muted">Paid seats unused</dt><dd className="tabular-nums">{x.paid_unused}</dd>
+        <dt className="muted">M19</dt><dd><b className={x.score_state === "red" ? "red" : ""}>{x.score ?? "withheld (interim " + x.interim + ")"}</b></dd>
+      </dl>
       <div className="mt-4"><Bars rows={["LF1", "LF2", "LF3", "LF4", "LF5", "LF6"].map((k) => [k, x.funnel[k]])} max={Math.max(w.before.funnel.LF1, w.after.funnel.LF1)} /></div>
       <div className="mt-4"><Bars rows={Object.entries(x.pillars).map(([k, v]: [string, J]) => [k, v ?? 0, v ?? "no data"])} max={100} /></div>
     </div>

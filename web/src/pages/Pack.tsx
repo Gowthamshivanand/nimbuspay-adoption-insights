@@ -14,6 +14,11 @@ const EMBED_CSS = PACK_CSS + "button{display:none!important}body{margin:20px 28p
 function restyle(doc: Document | null | undefined, css: string) {
   if (!doc || !doc.head || doc.getElementById("np-v2-style")) return;
   const st = doc.createElement("style"); st.id = "np-v2-style"; st.textContent = css; doc.head.appendChild(st);
+  /* Copy tidy on display only (the backend template and the Markdown export are unchanged): spaced hyphen -> colon. */
+  const walk = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    if (n.nodeValue && n.nodeValue.includes("SYNTHETIC DATA - illustrative")) n.nodeValue = n.nodeValue.replace("SYNTHETIC DATA - illustrative", "SYNTHETIC DATA: illustrative");
+  }
 }
 
 export default function Pack() {
