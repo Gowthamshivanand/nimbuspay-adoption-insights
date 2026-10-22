@@ -15,7 +15,7 @@ A runnable adoption-analytics product with a governed, read-only AI agent, built
 
 > **Hobby case study, synthetic data only.** This is a personal hobby project built for a campus case-study competition (HashedIn by Deloitte Campus PM Hiring 2026, "The Adoption Mirage"). "NimbusPay" is the fictional company from that case brief. Every number, team, user and event here is synthetic and labelled. It is **not affiliated with, endorsed by, or about any real company**, including nimbuspay.io, HashedIn or Deloitte, and contains no real company or personal data.
 
-**Author:** Gowtham S · **Licence:** MIT · **Repository:** https://github.com/mohithraghava/nimbuspay-adoption-insights
+**Author:** Gowtham S · **Licence:** MIT ·
 
 Every number is illustrative synthetic data that follows the rules in the supporting workbook (metrics M01 to M21, licence funnel LF1 to LF6, interaction rules IR1 to IR8). No real NimbusPay data is used.
 
