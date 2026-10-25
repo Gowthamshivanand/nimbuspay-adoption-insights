@@ -1,0 +1,10 @@
+event_id,interaction_id,run_id,event_time,ingested_at,region,team_id,user_id,event_type,agent_id,log_source,status,truth_id
+EVT-0001,INT-0001,RUN-0001,2026-09-07 09:00:00,2026-09-07 09:05:00,Region A,TEAM-A,USER-001,agent_run,AG-FRAUD-01,sdk,ok,
+EVT-0002,INT-0001,RUN-0001,2026-09-07 09:00:01,2026-09-07 09:05:01,Region A,TEAM-A,USER-001,search,AG-FRAUD-01,sdk,ok,
+EVT-0003,INT-0001,RUN-0001,2026-09-07 09:00:02,2026-09-07 09:05:02,Region A,TEAM-A,USER-001,connector_call,AG-FRAUD-01,sdk,ok,
+EVT-0004,INT-0001,RUN-0001,2026-09-07 09:00:03,2026-09-07 09:05:03,Region A,TEAM-A,USER-001,connector_call,AG-FRAUD-01,sdk,ok,
+EVT-0005,INT-0001,RUN-0001,2026-09-07 09:00:05,2026-09-07 09:05:05,Region A,TEAM-A,USER-001,response,AG-FRAUD-01,sdk,ok,
+EVT-0006,,,2026-09-07 09:00:00,2026-09-07 09:05:00,Region A,TEAM-B,USER-002,agent_run,AG-ONB-02,builder_ui,ok,
+EVT-0007,,,2026-09-07 09:00:02,2026-09-07 09:05:02,Region A,TEAM-B,USER-002,connector_call,AG-ONB-02,builder_ui,ok,
+EVT-0008,,,2026-09-07 09:00:04,2026-09-07 09:05:04,Region A,TEAM-B,USER-002,response,AG-ONB-02,builder_ui,ok,
+EVT-0009,,,2026-09-07 09:00:00,2026-09-07 09:05:00,Region A,TEAM-B,USER-003,login,,platform,ok,

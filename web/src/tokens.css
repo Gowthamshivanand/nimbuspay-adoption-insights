@@ -1,0 +1,74 @@
+/* NimbusPay — colour, type, elevation.
+   Light is a warm paper canvas. Dark is the same product at night, not an inverted admin theme. */
+
+:root {
+  color-scheme: light;
+  --np-canvas: #F7F7F5;
+  --np-surface: #FFFFFF;
+  --np-elevated: #FFFFFF;
+  --np-ink: #16181D;
+  --np-heading: #16181D;
+  --np-slate: #334155;
+  --np-muted: #4B5563;
+  --np-text-3: #6B7280;
+  --np-line: #EBEBEB;
+  --np-line-strong: #DDDDDD;
+  --np-track: #F2F1EE;
+  --np-grid: rgba(22, 24, 29, 0.06);
+  --np-tag: #F7F7F5;
+  --np-accent: #C2410C;
+  --np-accent-fill: #E8751A;
+  --np-accent-press: #C2410C;
+  --np-accent-soft: #FDF0E4;
+  --np-navy: #0B2E59;
+  --np-series-2: #0B2E59;
+  --np-series-3: #64748B;
+  --np-verified: #166534;
+  --np-verified-fill: #16A34A;
+  --np-warning: #B45309;
+  --np-critical: #DC2626;
+  --np-critical-fill: #DC2626;
+  --np-danger-soft: #FEF2F2;
+  --np-shadow: 0 1px 2px rgba(22, 24, 29, 0.04);
+  --np-shadow-lift: 0 6px 16px rgba(22, 24, 29, 0.08);
+  --np-shadow-pop: 0 8px 28px rgba(22, 24, 29, 0.12);
+  --np-glass: color-mix(in srgb, #FFFFFF 86%, transparent);
+  --np-radius-card: 20px;
+  --np-radius-control: 999px;
+  --np-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --np-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, sans-serif;
+}
+
+html.dark {
+  color-scheme: dark;
+  --np-canvas: #121110;
+  --np-surface: #1C1B19;
+  --np-elevated: #262421;
+  --np-ink: #F7F7F5;
+  --np-heading: #F7F7F5;
+  --np-slate: #D6D3CD;
+  --np-muted: #B0ADA8;
+  --np-text-3: #B0ADA8;
+  --np-line: rgba(255, 255, 255, 0.08);
+  --np-line-strong: rgba(255, 255, 255, 0.14);
+  --np-track: rgba(255, 255, 255, 0.06);
+  --np-grid: rgba(255, 255, 255, 0.06);
+  --np-tag: rgba(255, 255, 255, 0.06);
+  --np-accent: #F0A36A;
+  --np-accent-fill: #E8751A;
+  --np-accent-press: #C2410C;
+  --np-accent-soft: rgba(232, 117, 26, 0.16);
+  --np-navy: #0B2E59;
+  --np-series-2: #9DB6DE;
+  --np-series-3: #B0ADA8;
+  --np-verified: #86EFAC;
+  --np-verified-fill: #16A34A;
+  --np-warning: #FBBF24;
+  --np-critical: #FCA5A5;
+  --np-critical-fill: #DC2626;
+  --np-danger-soft: rgba(220, 38, 38, 0.16);
+  --np-shadow: none;
+  --np-shadow-lift: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --np-shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --np-glass: color-mix(in srgb, #1C1B19 88%, transparent);
+}

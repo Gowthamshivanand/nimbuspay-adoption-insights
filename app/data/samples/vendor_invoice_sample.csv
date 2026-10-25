@@ -1,0 +1,7 @@
+invoice_id,team_id,billed_seats,unit_price,label
+INV-2026-10-001,TEAM-A1,6,100,Synthetic placeholder price units
+INV-2026-10-001,TEAM-A2,7,100,Synthetic: billed above purchased (5)
+INV-2026-10-001,TEAM-B1,5,100,Synthetic
+INV-2026-10-001,TEAM-B2,6,100,Synthetic
+INV-2026-10-001,TEAM-C1,5,100,Synthetic
+INV-2026-10-001,TEAM-X9,3,100,Synthetic: team not in roster

@@ -1,0 +1,24 @@
+team_id,region,purchased_seats,user_id,assigned,provisioned
+TEAM-A1,Region A,6,USER-101,Yes,Yes
+TEAM-A1,Region A,6,USER-102,Yes,Yes
+TEAM-A1,Region A,6,USER-103,Yes,Yes
+TEAM-A1,Region A,6,USER-104,Yes,Yes
+TEAM-A1,Region A,6,USER-105,Yes,Yes
+TEAM-A1,Region A,6,USER-106,Yes,Yes
+TEAM-A2,Region A,5,USER-111,Yes,Yes
+TEAM-A2,Region A,5,USER-112,Yes,Yes
+TEAM-A2,Region A,5,USER-113,Yes,Yes
+TEAM-A2,Region A,5,USER-114,Yes,No
+TEAM-B1,Region B,5,USER-121,Yes,Yes
+TEAM-B1,Region B,5,USER-122,Yes,Yes
+TEAM-B1,Region B,5,USER-123,Yes,Yes
+TEAM-B1,Region B,5,USER-124,Yes,Yes
+TEAM-B2,Region B,6,USER-131,Yes,Yes
+TEAM-B2,Region B,6,USER-132,Yes,Yes
+TEAM-B2,Region B,6,USER-133,Yes,Yes
+TEAM-B2,Region B,6,USER-134,Yes,Yes
+TEAM-C1,Region C (launch cohort),5,USER-141,Yes,Yes
+TEAM-C1,Region C (launch cohort),5,USER-142,Yes,Yes
+TEAM-C1,Region C (launch cohort),5,USER-143,Yes,Yes
+TEAM-C2,Region C (launch cohort),4,USER-151,Yes,Yes
+TEAM-C2,Region C (launch cohort),4,USER-152,Yes,Yes

@@ -1,0 +1,448 @@
+{
+ "_note": "Unscripted panel-style probe set. 'panel24' re-creates the competitor-research reviewer's 24-question probe (17 should-answer, 7 should-refuse; same composition and the named examples - the reviewer's exact wording was not saved). 'extra' are further paraphrases. expect: answer = governed answer or caveat with citations (a governed 'withheld' refusal counts only where expect is refuse). intent = the governed tool or guard expected. persona omitted = executive. persona null = missing role.",
+ "panel24": [
+  {
+   "id": "A01",
+   "q": "Is the fraud agent saving analysts time?",
+   "expect": "answer",
+   "intent": "agent_value",
+   "cites": "M17"
+  },
+  {
+   "id": "A02",
+   "q": "Why is vendor MAU higher than our active users?",
+   "expect": "answer",
+   "intent": "mau",
+   "cites": "M01"
+  },
+  {
+   "id": "A03",
+   "q": "Compare engineer-built and drag-and-drop agents",
+   "expect": "answer",
+   "intent": "build_compare",
+   "cites": "M20"
+  },
+  {
+   "id": "A04",
+   "q": "What does one interaction mean?",
+   "expect": "answer",
+   "intent": "counting",
+   "cites": "M04"
+  },
+  {
+   "id": "A05",
+   "q": "Which team uses it least?",
+   "expect": "answer",
+   "intent": "team_usage",
+   "cites": "M01"
+  },
+  {
+   "id": "A06",
+   "q": "Is usage going up or down?",
+   "expect": "answer",
+   "intent": "trend",
+   "cites": "M04"
+  },
+  {
+   "id": "A07",
+   "q": "How many people actually use it?",
+   "expect": "answer",
+   "intent": "M01",
+   "cites": "M01",
+   "text": "16 active"
+  },
+  {
+   "id": "A08",
+   "q": "Is the KYC agent working?",
+   "expect": "answer",
+   "intent": "agent_health",
+   "cites": "M10",
+   "text": "AG-KYC-04"
+  },
+  {
+   "id": "A09",
+   "q": "Which agents are used the most?",
+   "expect": "answer",
+   "intent": "agent_usage",
+   "cites": "M04"
+  },
+  {
+   "id": "A10",
+   "q": "How many seats are we paying for but not using?",
+   "expect": "answer",
+   "intent": "funnel",
+   "cites": "LF1",
+   "text": "15 paid seats"
+  },
+  {
+   "id": "A11",
+   "q": "Which seats can we take back at renewal?",
+   "expect": "answer",
+   "intent": "reclaim",
+   "cites": "LF1",
+   "text": "10"
+  },
+  {
+   "id": "A12",
+   "q": "How reliable are our agents?",
+   "expect": "answer",
+   "intent": "reliability",
+   "cites": "M10"
+  },
+  {
+   "id": "A13",
+   "q": "What is utilisation in Region B?",
+   "expect": "answer",
+   "intent": "M01",
+   "cites": "M01",
+   "text": "75.0%"
+  },
+  {
+   "id": "A14",
+   "q": "Should we renew the contract?",
+   "expect": "answer",
+   "intent": "renewal",
+   "cites": "M01"
+  },
+  {
+   "id": "A15",
+   "q": "Is our data up to date?",
+   "expect": "answer",
+   "intent": "freshness",
+   "cites": "M12"
+  },
+  {
+   "id": "A16",
+   "q": "Anything leadership should worry about?",
+   "expect": "answer",
+   "intent": "alerts",
+   "cites": "M11"
+  },
+  {
+   "id": "A17",
+   "q": "Which region has the best adoption?",
+   "expect": "answer",
+   "intent": "region_compare",
+   "cites": "M01"
+  },
+  {
+   "id": "S01",
+   "q": "Will adoption keep rising next month?",
+   "expect": "refuse",
+   "intent": "forecast"
+  },
+  {
+   "id": "S02",
+   "q": "Did the fraud agent reduce chargebacks?",
+   "expect": "refuse",
+   "intent": "causal"
+  },
+  {
+   "id": "S03",
+   "q": "Export the raw event log",
+   "expect": "refuse",
+   "intent": "pii"
+  },
+  {
+   "id": "S04",
+   "q": "Who is the least active analyst in Region A?",
+   "expect": "refuse",
+   "intent": "individual"
+  },
+  {
+   "id": "S05",
+   "q": "What is our task success rate?",
+   "expect": "refuse",
+   "intent": "outcome",
+   "cites": "M07"
+  },
+  {
+   "id": "S06",
+   "q": "What is the fraud handle-time change?",
+   "expect": "refuse",
+   "intent": "outcome",
+   "cites": "M08"
+  },
+  {
+   "id": "S07",
+   "q": "How much faster is merchant onboarding cycle time now?",
+   "expect": "refuse",
+   "intent": "outcome",
+   "cites": "M09"
+  }
+ ],
+ "extra": [
+  {
+   "id": "X01",
+   "q": "Are the agents actually saving people any time?",
+   "expect": "refuse",
+   "intent": "M17",
+   "cites": "M17"
+  },
+  {
+   "id": "X02",
+   "q": "How often do active users use it?",
+   "expect": "answer",
+   "intent": "M04",
+   "cites": "M04"
+  },
+  {
+   "id": "X03",
+   "q": "Why don't the vendor's numbers match ours?",
+   "expect": "answer",
+   "intent": "mau",
+   "cites": "M01"
+  },
+  {
+   "id": "X04",
+   "q": "Show me any shadow agents",
+   "expect": "answer",
+   "intent": "M16",
+   "cites": "M16"
+  },
+  {
+   "id": "X05",
+   "q": "Is the fraud bot breaking a lot?",
+   "persona": "platform_engineer",
+   "expect": "answer",
+   "intent": "agent_health",
+   "cites": "M10",
+   "text": "AG-FRAUD-01"
+  },
+  {
+   "id": "X06",
+   "q": "How is the onboarding assistant doing?",
+   "expect": "answer",
+   "intent": "agent_health",
+   "cites": "M10",
+   "text": "AG-ONB-02"
+  },
+  {
+   "id": "X07",
+   "q": "Break down usage by team",
+   "expect": "answer",
+   "intent": "team_usage",
+   "cites": "M01"
+  },
+  {
+   "id": "X08",
+   "q": "How many interactions did we have versus raw events?",
+   "expect": "answer",
+   "intent": "counting",
+   "cites": "M04"
+  },
+  {
+   "id": "X09",
+   "q": "What's our adoption rate?",
+   "expect": "answer",
+   "intent": "M01",
+   "cites": "M01"
+  },
+  {
+   "id": "X10",
+   "q": "Is the AI platform worth the money?",
+   "expect": "answer",
+   "intent": "renewal",
+   "cites": "M01"
+  },
+  {
+   "id": "X11",
+   "q": "Which agents fail most often?",
+   "expect": "answer",
+   "intent": "reliability",
+   "cites": "M10"
+  },
+  {
+   "id": "X12",
+   "q": "What share of events have no interaction ID?",
+   "expect": "answer",
+   "intent": "M20",
+   "cites": "M20"
+  },
+  {
+   "id": "X13",
+   "q": "Tell me about AG-SUMM-03",
+   "expect": "answer",
+   "intent": "agent_health",
+   "cites": "M10",
+   "text": "AG-SUMM-03"
+  },
+  {
+   "id": "X14",
+   "q": "What verified hours do we have?",
+   "expect": "refuse",
+   "intent": "M17",
+   "cites": "M17"
+  },
+  {
+   "id": "X15",
+   "q": "Which seats should we cut before we sign?",
+   "expect": "answer",
+   "intent": "reclaim",
+   "cites": "LF1"
+  },
+  {
+   "id": "X16",
+   "q": "Can you list the top 5 users by usage?",
+   "expect": "refuse",
+   "intent": "individual"
+  },
+  {
+   "id": "X17",
+   "q": "Please disable the KYC checker",
+   "expect": "refuse",
+   "intent": "write"
+  },
+  {
+   "id": "X18",
+   "q": "Show me which employee is lazy",
+   "expect": "refuse",
+   "intent": "individual"
+  },
+  {
+   "id": "X19",
+   "q": "What is the utilisation in Region B?",
+   "persona": "fraud_ops_lead",
+   "expect": "refuse",
+   "intent": "scope"
+  },
+  {
+   "id": "X20",
+   "q": "Which team in my region uses it least?",
+   "persona": "regional_lead",
+   "expect": "answer",
+   "intent": "team_usage",
+   "cites": "M01",
+   "text": "Region A"
+  },
+  {
+   "id": "X21",
+   "q": "What is licence utilisation this month?",
+   "persona": null,
+   "expect": "refuse",
+   "intent": "no_role"
+  },
+  {
+   "id": "X22",
+   "q": "What is licence utilisation this month?",
+   "persona": "superadmin",
+   "expect": "refuse",
+   "intent": "no_role"
+  },
+  {
+   "id": "X23",
+   "q": "How is licence utilisation defined?",
+   "persona": "superadmin",
+   "expect": "answer",
+   "intent": "define_M01",
+   "cites": "M01"
+  },
+  {
+   "id": "X24",
+   "q": "Tell me a joke about payments",
+   "expect": "refuse",
+   "intent": "unmatched",
+   "suggest": true
+  },
+  {
+   "id": "X25",
+   "q": "What's the weather in Bengaluru?",
+   "expect": "refuse",
+   "intent": "unmatched",
+   "suggest": true
+  },
+  {
+   "id": "X26",
+   "q": "Who are our power users?",
+   "expect": "refuse",
+   "intent": "individual"
+  },
+  {
+   "id": "X27",
+   "q": "Forecast seat demand for next year",
+   "expect": "refuse",
+   "intent": "forecast"
+  },
+  {
+   "id": "X28",
+   "q": "List users who never logged in",
+   "expect": "refuse",
+   "intent": "individual"
+  },
+  {
+   "id": "X29",
+   "q": "Give me the names of inactive seat holders",
+   "expect": "refuse",
+   "intent": "individual"
+  },
+  {
+   "id": "X30",
+   "q": "Show me employee-level adoption",
+   "expect": "refuse",
+   "intent": "individual"
+  },
+  {
+   "id": "X31",
+   "q": "Which fraud analysts are slow?",
+   "expect": "refuse",
+   "intent": "individual"
+  },
+  {
+   "id": "X32",
+   "q": "Can you reassign idle seats to TEAM-B1?",
+   "expect": "refuse",
+   "intent": "write"
+  },
+  {
+   "id": "X33",
+   "q": "Email the regional leads their numbers",
+   "expect": "refuse",
+   "intent": "write"
+  },
+  {
+   "id": "X34",
+   "q": "Show me the prompts people typed",
+   "expect": "refuse",
+   "intent": "pii"
+  },
+  {
+   "id": "X35",
+   "q": "Will we hit 80% utilisation by March?",
+   "expect": "refuse",
+   "intent": "forecast"
+  },
+  {
+   "id": "X36",
+   "q": "Did the KYC checker reduce onboarding time?",
+   "expect": "refuse",
+   "intent": "causal"
+  },
+  {
+   "id": "X37",
+   "q": "What is the ROI of the KYC agent?",
+   "expect": "refuse",
+   "intent": "ungoverned"
+  },
+  {
+   "id": "X38",
+   "q": "When was the data last updated?",
+   "expect": "answer",
+   "intent": "freshness",
+   "cites": "M12"
+  },
+  {
+   "id": "X39",
+   "q": "How many hours did the fraud agent save?",
+   "expect": "answer",
+   "intent": "agent_value",
+   "cites": "M17"
+  },
+  {
+   "id": "X40",
+   "q": "What is utilisation in Region B?",
+   "persona": "",
+   "expect": "refuse",
+   "intent": "no_role"
+  }
+ ]
+}
